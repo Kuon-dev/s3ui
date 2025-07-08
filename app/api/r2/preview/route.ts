@@ -13,10 +13,10 @@ const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME!;
  * @returns File content with appropriate headers for preview
  */
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get('key');
+  
   try {
-    const { searchParams } = new URL(request.url);
-    const key = searchParams.get('key');
-
     if (!key) {
       return NextResponse.json({ error: 'Key is required' }, { status: 400 });
     }
@@ -36,51 +36,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    // Convert the stream to a buffer
+    // Convert the stream to a buffer using the correct AWS SDK method
     const chunks: Uint8Array[] = [];
     const reader = response.Body.transformToWebStream().getReader();
     
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value);
+      if (value) chunks.push(value);
     }
     
     const buffer = Buffer.concat(chunks);
 
-    // Determine content type - prefer the detected MIME type
-    let contentType = fileType.mimeType;
-    
-    // Use R2's content type if it's more specific
-    if (response.ContentType && response.ContentType !== 'binary/octet-stream') {
-      contentType = response.ContentType;
-    }
+    // Determine content type
+    const contentType = response.ContentType || fileType.mimeType;
 
-    // Set appropriate headers for inline preview
+    // Set appropriate headers
     const headers = new Headers();
     headers.set('Content-Type', contentType);
     headers.set('Content-Length', buffer.length.toString());
-    
-    // For text files, ensure UTF-8 encoding
-    if (contentType.startsWith('text/')) {
-      headers.set('Content-Type', `${contentType}; charset=utf-8`);
-    }
-    
-    // Enable CORS for preview requests
     headers.set('Access-Control-Allow-Origin', '*');
-    headers.set('Access-Control-Allow-Methods', 'GET');
-    headers.set('Access-Control-Allow-Headers', 'Content-Type');
+    headers.set('Cache-Control', 'public, max-age=3600');
     
-    // Set cache headers for better performance
-    headers.set('Cache-Control', 'public, max-age=3600'); // 1 hour cache
-    
-    // For supported preview types, serve inline
-    if (fileType.previewable) {
-      headers.set('Content-Disposition', `inline; filename="${filename}"`);
-    } else {
-      // For unsupported types, still serve inline but browser will likely download
-      headers.set('Content-Disposition', `inline; filename="${filename}"`);
-    }
+    // Properly encode filename for Content-Disposition header to handle Unicode
+    const encodedFilename = encodeURIComponent(filename);
+    headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodedFilename}`);
 
     return new NextResponse(buffer, { headers });
 

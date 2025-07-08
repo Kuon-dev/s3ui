@@ -48,10 +48,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize filename
+    // Enhanced filename sanitization to handle Unicode and problematic characters
     const sanitizedFileName = file.name
+      // Normalize Unicode characters (convert to standard form)
+      .normalize('NFD')
+      // Remove non-ASCII characters including Unicode spaces, combining marks, etc.
+      .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritical marks
+      .replace(/[\u2000-\u206f]/g, ' ') // Replace Unicode spaces with regular space
+      .replace(/[\u2070-\u209f]/g, '') // Remove superscripts/subscripts
+      .replace(/[\u20a0-\u20cf]/g, '') // Remove currency symbols
+      .replace(/[\u2100-\u214f]/g, '') // Remove letterlike symbols
+      // Remove or replace problematic characters
       .replace(/[<>:"/\\|?*]/g, '')
       .replace(/\.\./g, '')
+      .replace(/[\x00-\x1f\x7f-\x9f]/g, '') // Remove control characters
+      // Clean up spaces
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
       .trim();
 
     if (!sanitizedFileName) {
@@ -62,7 +74,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the key by combining path and filename
-    const key = path ? `${path}/${sanitizedFileName}` : sanitizedFileName;
+    // Remove any trailing slashes from path to avoid double slashes
+    const cleanPath = path ? path.replace(/\/+$/, '') : '';
+    const key = cleanPath ? `${cleanPath}/${sanitizedFileName}` : sanitizedFileName;
 
     // Convert File to Buffer for upload
     const buffer = Buffer.from(await file.arrayBuffer());

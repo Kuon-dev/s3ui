@@ -37,7 +37,8 @@ interface UploadDialogProps {
   onUploadComplete: () => void;
 }
 
-interface FileWithProgress extends File {
+interface FileWithProgress {
+  file: File;
   id: string;
   progress: number;
   status: 'pending' | 'uploading' | 'completed' | 'failed';
@@ -68,13 +69,21 @@ export function UploadDialog({
     setValidationErrors(validation.errors);
     
     if (validation.isValid) {
-      const filesWithProgress: FileWithProgress[] = files.map(file => 
-        Object.assign(file, {
+      const filesWithProgress: FileWithProgress[] = files
+        .filter(file => {
+          if (!file || !file.name || file.name === '') {
+            console.error('File missing name:', file ? { name: file.name, size: file.size, type: file.type } : 'null file');
+            toast.error('One or more files are invalid or missing names');
+            return false;
+          }
+          return true;
+        })
+        .map(file => ({
+          file: file,
           id: `${file.name}-${Date.now()}-${Math.random()}`,
           progress: 0,
           status: 'pending' as const,
-        })
-      );
+        }));
       setSelectedFiles(prev => [...prev, ...filesWithProgress]);
     } else {
       // Show first few errors in toast
@@ -118,7 +127,14 @@ export function UploadDialog({
       return acc;
     }, 0);
     
-    setTotalProgress(Math.round(total / selectedFiles.length));
+    const newTotalProgress = Math.round(total / selectedFiles.length);
+    console.log('UploadDialog: Calculating total progress:', {
+      selectedFiles: selectedFiles.map(f => ({ id: f.id, progress: f.progress, status: f.status })),
+      total,
+      length: selectedFiles.length,
+      newTotalProgress
+    });
+    setTotalProgress(newTotalProgress);
   }, [selectedFiles]);
 
   const handleUpload = async () => {
@@ -130,30 +146,38 @@ export function UploadDialog({
     try {
       const pendingFiles = selectedFiles.filter(f => f.status === 'pending');
       
-      const uploadPromises = pendingFiles.map(async (file) => {
+      const uploadPromises = pendingFiles.map(async (fileWrapper) => {
         // Update status to uploading
         setSelectedFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, status: 'uploading' as const } : f
+          f.id === fileWrapper.id ? { ...f, status: 'uploading' as const } : f
         ));
         
         try {
-          await uploadManager.uploadFile(file, currentPath, (progress: UploadProgress) => {
-            setSelectedFiles(prev => prev.map(f => 
-              f.id === file.id 
-                ? { ...f, progress: progress.progress } 
-                : f
-            ));
+          console.log(`Starting upload for file: ${fileWrapper.file.name}, path: ${currentPath}`);
+          await uploadManager.uploadFile(fileWrapper.file, currentPath, (progress: UploadProgress) => {
+            console.log('UploadDialog: Received progress update:', progress);
+            setSelectedFiles(prev => {
+              const updated = prev.map(f => 
+                f.id === fileWrapper.id 
+                  ? { ...f, progress: progress.progress } 
+                  : f
+              );
+              console.log('UploadDialog: Updated selectedFiles:', updated.find(f => f.id === fileWrapper.id));
+              return updated;
+            });
           });
           
           // Update status to completed
           setSelectedFiles(prev => prev.map(f => 
-            f.id === file.id ? { ...f, status: 'completed' as const, progress: 100 } : f
+            f.id === fileWrapper.id ? { ...f, status: 'completed' as const, progress: 100 } : f
           ));
           uploadedCount.current++;
+          console.log(`Upload completed for file: ${fileWrapper.file.name}`);
         } catch (error) {
+          console.error(`Upload failed for file: ${fileWrapper.file.name}`, error);
           // Update status to failed
           setSelectedFiles(prev => prev.map(f => 
-            f.id === file.id 
+            f.id === fileWrapper.id 
               ? { ...f, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' } 
               : f
           ));
@@ -168,14 +192,19 @@ export function UploadDialog({
         
         // Auto close if all succeeded
         if (uploadedCount.current === pendingFiles.length) {
+          // Set uploading to false before closing
+          setUploading(false);
           setTimeout(() => {
             handleClose();
           }, 1000);
+        } else {
+          setUploading(false);
         }
+      } else {
+        setUploading(false);
       }
     } catch {
       toast.error('Upload process failed');
-    } finally {
       setUploading(false);
     }
   };
@@ -203,7 +232,7 @@ export function UploadDialog({
     }
   };
 
-  const totalSize = selectedFiles.reduce((acc, file) => acc + file.size, 0);
+  const totalSize = selectedFiles.reduce((acc, fileWrapper) => acc + fileWrapper.file.size, 0);
   const canUpload = selectedFiles.some(f => f.status === 'pending') && !uploading;
 
   return (
@@ -309,27 +338,32 @@ export function UploadDialog({
               </div>
               
               <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                {selectedFiles.map((file) => {
-                  const fileType = getFileType(file.name);
-                  const FileIcon = getFileIcon(file.name, false);
+                {selectedFiles.map((fileWrapper) => {
+                  // Ensure file has a name before calling getFileType
+                  if (!fileWrapper.file || !fileWrapper.file.name) {
+                    console.error('File missing name:', fileWrapper);
+                    return null;
+                  }
+                  const fileType = getFileType(fileWrapper.file.name);
+                  const FileIcon = getFileIcon(fileWrapper.file.name, false);
                   
                   return (
                     <div
-                      key={file.id}
+                      key={fileWrapper.id}
                       className={cn(
                         "group relative rounded-lg transition-all duration-200",
                         "glass-subtle border border-white/10",
-                        file.status === 'failed' && "border-red-500/50 bg-red-500/5"
+                        fileWrapper.status === 'failed' && "border-red-500/50 bg-red-500/5"
                       )}
                     >
                       <div className="p-3">
                         <div className="flex items-start gap-3">
                           <div className={cn(
                             "rounded-lg p-2 transition-colors",
-                            file.status === 'completed' && "bg-green-500/10",
-                            file.status === 'uploading' && "bg-blue-500/10",
-                            file.status === 'failed' && "bg-red-500/10",
-                            file.status === 'pending' && "bg-white/5"
+                            fileWrapper.status === 'completed' && "bg-green-500/10",
+                            fileWrapper.status === 'uploading' && "bg-blue-500/10",
+                            fileWrapper.status === 'failed' && "bg-red-500/10",
+                            fileWrapper.status === 'pending' && "bg-white/5"
                           )}>
                             <FileIcon className={cn(
                               "h-5 w-5",
@@ -339,36 +373,36 @@ export function UploadDialog({
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate" title={file.name}>
-                                {file.name}
+                              <p className="text-sm font-medium truncate" title={fileWrapper.file.name}>
+                                {fileWrapper.file.name}
                               </p>
-                              {getStatusIcon(file.status)}
+                              {getStatusIcon(fileWrapper.status)}
                             </div>
                             
                             <div className="flex items-center gap-3 mt-1">
                               <span className="text-xs text-muted-foreground">
-                                {formatFileSize(file.size)}
+                                {formatFileSize(fileWrapper.file.size)}
                               </span>
-                              {file.error && (
+                              {fileWrapper.error && (
                                 <span className="text-xs text-red-400">
-                                  {file.error}
+                                  {fileWrapper.error}
                                 </span>
                               )}
                             </div>
                             
-                            {file.status === 'uploading' && (
+                            {fileWrapper.status === 'uploading' && (
                               <div className="mt-2">
-                                <Progress value={file.progress} className="h-1" />
+                                <Progress value={fileWrapper.progress} className="h-1" />
                               </div>
                             )}
                           </div>
                           
-                          {file.status !== 'uploading' && (
+                          {fileWrapper.status !== 'uploading' && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                              onClick={() => removeFile(file.id)}
+                              onClick={() => removeFile(fileWrapper.id)}
                               disabled={uploading}
                             >
                               <X className="h-4 w-4" />

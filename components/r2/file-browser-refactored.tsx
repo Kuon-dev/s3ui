@@ -68,20 +68,6 @@ function FileItem({
   
   const { setCurrentPath, viewMode } = useFileBrowserStore();
   
-  // Ensure object.key exists and is a string
-  if (!object.key || typeof object.key !== 'string') {
-    console.error('Invalid object key:', object);
-    return null;
-  }
-
-  const filename = object.isFolder 
-    ? object.key.replace(/\/$/, '').split('/').pop() || object.key.replace(/\/$/, '')
-    : object.key.split('/').pop() || object.key;
-    
-  const IconComponent = getFileIcon(filename, object.isFolder);
-  const fileType = getFileType(filename);
-  const colorClass = object.isFolder ? 'text-blue-500' : fileType.iconColor;
-  
   useEffect(() => {
     if (!itemRef.current) return;
     
@@ -97,8 +83,9 @@ function FileItem({
     itemRef.current.classList.add('animate-fade-in');
   }, [index, viewMode]);
   
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+  const formatFileSize = (bytes: number | undefined) => {
+    if (!bytes || bytes === 0) return '0 B';
+    if (isNaN(bytes)) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -108,11 +95,27 @@ function FileItem({
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     if (object.isFolder) {
-      setCurrentPath(object.key);
+      // Remove trailing slash for consistent path handling
+      const cleanPath = object.key.replace(/\/+$/, '');
+      setCurrentPath(cleanPath);
     } else {
       onAction(object, 'open');
     }
   }, [object, setCurrentPath, onAction]);
+  
+  // Ensure object.key exists and is a string
+  if (!object.key || typeof object.key !== 'string') {
+    console.error('Invalid object key:', object);
+    return null;
+  }
+
+  const filename = object.isFolder 
+    ? object.key.replace(/\/$/, '').split('/').pop() || object.key.replace(/\/$/, '')
+    : object.key.split('/').pop() || object.key;
+    
+  const IconComponent = getFileIcon(filename, object.isFolder);
+  const fileType = getFileType(filename);
+  const colorClass = object.isFolder ? 'text-blue-500' : fileType.iconColor;
   
   const isImage = fileType.category === FileCategory.IMAGE;
   
@@ -164,7 +167,7 @@ function FileItem({
                   {filename}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {object.isFolder ? 'Folder' : formatFileSize(object.size)}
+                  {object.isFolder ? 'Folder' : formatFileSize(object.size || 0)}
                 </p>
               </div>
             </div>
@@ -223,12 +226,12 @@ function FileItem({
                   {filename}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {object.isFolder ? 'Folder' : `${fileType.description} • ${formatFileSize(object.size)}`}
+                  {object.isFolder ? 'Folder' : `${fileType.description} • ${formatFileSize(object.size || 0)}`}
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-              <span>{format(new Date(object.lastModified), 'MMM dd, HH:mm')}</span>
+              <span>{object.lastModified ? format(new Date(object.lastModified), 'MMM dd, HH:mm') : '-'}</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
@@ -257,7 +260,13 @@ function FileContextMenu({ object, onAction }: { object: R2Object; onAction: (ob
   
   return (
     <ContextMenuContent className="glass">
-      <ContextMenuItem onClick={() => onAction(object, 'open')} className="hover-lift">
+      <ContextMenuItem 
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'open');
+        }} 
+        className="hover-lift"
+      >
         {object.isFolder ? (
           <>
             <FolderOpen className="h-4 w-4 mr-2" />
@@ -272,14 +281,26 @@ function FileContextMenu({ object, onAction }: { object: R2Object; onAction: (ob
       </ContextMenuItem>
       
       {!object.isFolder && fileType.previewable && (
-        <ContextMenuItem onClick={() => onAction(object, 'preview')} className="hover-lift">
+        <ContextMenuItem 
+          onClick={(e) => {
+            e.stopPropagation();
+            onAction(object, 'preview');
+          }} 
+          className="hover-lift"
+        >
           <Eye className="h-4 w-4 mr-2" />
           Preview
         </ContextMenuItem>
       )}
       
       {!object.isFolder && (
-        <ContextMenuItem onClick={() => onAction(object, 'download')} className="hover-lift">
+        <ContextMenuItem 
+          onClick={(e) => {
+            e.stopPropagation();
+            onAction(object, 'download');
+          }} 
+          className="hover-lift"
+        >
           <Download className="h-4 w-4 mr-2" />
           Download
         </ContextMenuItem>
@@ -287,19 +308,37 @@ function FileContextMenu({ object, onAction }: { object: R2Object; onAction: (ob
       
       <ContextMenuSeparator />
       
-      <ContextMenuItem onClick={() => onAction(object, 'rename')} className="hover-lift">
+      <ContextMenuItem 
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'rename');
+        }} 
+        className="hover-lift"
+      >
         <Edit className="h-4 w-4 mr-2" />
         Rename
       </ContextMenuItem>
       
-      <ContextMenuItem onClick={() => onAction(object, 'copyUrl')} className="hover-lift">
+      <ContextMenuItem 
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'copyUrl');
+        }} 
+        className="hover-lift"
+      >
         <Copy className="h-4 w-4 mr-2" />
         Copy URL
       </ContextMenuItem>
       
       <ContextMenuSeparator />
       
-      <ContextMenuItem onClick={() => onAction(object, 'properties')} className="hover-lift">
+      <ContextMenuItem 
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'properties');
+        }} 
+        className="hover-lift"
+      >
         <Info className="h-4 w-4 mr-2" />
         Properties
       </ContextMenuItem>
@@ -307,7 +346,10 @@ function FileContextMenu({ object, onAction }: { object: R2Object; onAction: (ob
       <ContextMenuSeparator />
       
       <ContextMenuItem 
-        onClick={() => onAction(object, 'delete')}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'delete');
+        }}
         className="text-red-600 focus:text-red-600 hover-lift"
       >
         <Trash2 className="h-4 w-4 mr-2" />
@@ -322,22 +364,43 @@ function FileDropdownMenu({ object, onAction }: { object: R2Object; onAction: (o
     <DropdownMenuContent className="glass">
       {!object.isFolder && (
         <>
-          <DropdownMenuItem onClick={() => onAction(object, 'preview')} className="hover-lift">
+          <DropdownMenuItem 
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction(object, 'preview');
+            }} 
+            className="hover-lift"
+          >
             <Eye className="h-4 w-4 mr-2" />
             Preview
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onAction(object, 'download')} className="hover-lift">
+          <DropdownMenuItem 
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction(object, 'download');
+            }} 
+            className="hover-lift"
+          >
             <Download className="h-4 w-4 mr-2" />
             Download
           </DropdownMenuItem>
         </>
       )}
-      <DropdownMenuItem onClick={() => onAction(object, 'rename')} className="hover-lift">
+      <DropdownMenuItem 
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'rename');
+        }} 
+        className="hover-lift"
+      >
         <Edit className="h-4 w-4 mr-2" />
         Rename
       </DropdownMenuItem>
       <DropdownMenuItem
-        onClick={() => onAction(object, 'delete')}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAction(object, 'delete');
+        }}
         className="text-red-600 hover-lift"
       >
         <Trash2 className="h-4 w-4 mr-2" />
@@ -383,7 +446,7 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
   
   // Enhanced refresh function that also refreshes sidebar
   const refreshAll = useCallback(() => {
-    refreshAll();
+    refetch();
     queryClient.invalidateQueries({ queryKey: r2QueryKeys.all });
   }, [refetch, queryClient]);
   
@@ -492,7 +555,9 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
         break;
       case 'open':
         if (object.isFolder) {
-          setCurrentPath(object.key);
+          // Remove trailing slash for consistent path handling
+          const cleanPath = object.key.replace(/\/+$/, '');
+          setCurrentPath(cleanPath);
         } else {
           setShowPreviewDialog(true);
         }
@@ -600,8 +665,9 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+  const formatFileSize = (bytes: number | undefined) => {
+    if (!bytes || bytes === 0) return '0 B';
+    if (isNaN(bytes)) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value);
+      if (value) chunks.push(value);
     }
     
     const buffer = Buffer.concat(chunks);

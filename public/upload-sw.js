@@ -1,12 +1,17 @@
 // Service Worker for handling file uploads
+const SW_VERSION = '2.0';
 let uploadQueue = [];
 let activeUploads = new Map();
 
+console.log('Upload Service Worker v' + SW_VERSION + ' loaded');
+
 self.addEventListener('install', (event) => {
+  console.log('Upload Service Worker v' + SW_VERSION + ' installing');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
+  console.log('Upload Service Worker v' + SW_VERSION + ' activated');
   event.waitUntil(clients.claim());
 });
 
@@ -51,7 +56,7 @@ async function handleUpload(data, port) {
     filename: file.name || 'unnamed_file',
     progress: 0,
     status: 'uploading',
-    controller: new AbortController(),
+    xhr: null,
   });
 
   try {
@@ -59,29 +64,89 @@ async function handleUpload(data, port) {
     formData.append('file', file);
     formData.append('path', path);
 
-    const response = await fetch('/api/r2/upload', {
-      method: 'POST',
-      body: formData,
-      signal: activeUploads.get(uploadId).controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
-
-    const result = await response.json();
+    // Use XMLHttpRequest for progress tracking
+    const xhr = new XMLHttpRequest();
     
+    // Store xhr for cancellation
     activeUploads.set(uploadId, {
       ...activeUploads.get(uploadId),
-      progress: 100,
-      status: 'completed',
+      xhr: xhr,
     });
 
-    port.postMessage({
-      type: 'UPLOAD_COMPLETE',
-      uploadId,
-      result,
+    // Set up progress tracking
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        
+        // Update active upload progress
+        const upload = activeUploads.get(uploadId);
+        if (upload) {
+          activeUploads.set(uploadId, {
+            ...upload,
+            progress: progress,
+          });
+        }
+        
+        // Send progress update
+        port.postMessage({
+          type: 'UPLOAD_PROGRESS',
+          uploadId,
+          progress,
+        });
+      }
     });
+
+    // Set up completion handler
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          
+          activeUploads.set(uploadId, {
+            ...activeUploads.get(uploadId),
+            progress: 100,
+            status: 'completed',
+          });
+
+          port.postMessage({
+            type: 'UPLOAD_COMPLETE',
+            uploadId,
+            result,
+          });
+        } catch (error) {
+          throw new Error('Invalid response format');
+        }
+      } else {
+        throw new Error(`Upload failed: ${xhr.statusText}`);
+      }
+    });
+
+    // Set up error handler
+    xhr.addEventListener('error', () => {
+      throw new Error('Upload failed: Network error');
+    });
+
+    // Set up abort handler
+    xhr.addEventListener('abort', () => {
+      const upload = activeUploads.get(uploadId);
+      if (upload) {
+        activeUploads.set(uploadId, {
+          ...upload,
+          status: 'cancelled',
+        });
+      }
+      
+      port.postMessage({
+        type: 'UPLOAD_FAILED',
+        uploadId,
+        error: 'Upload cancelled',
+      });
+    });
+
+    // Start the upload
+    xhr.open('POST', '/api/r2/upload');
+    xhr.send(formData);
+
   } catch (error) {
     const upload = activeUploads.get(uploadId);
     if (upload) {
@@ -107,8 +172,8 @@ async function handleUpload(data, port) {
 
 function cancelUpload(uploadId) {
   const upload = activeUploads.get(uploadId);
-  if (upload && upload.controller) {
-    upload.controller.abort();
+  if (upload && upload.xhr) {
+    upload.xhr.abort();
     activeUploads.delete(uploadId);
   }
 }
