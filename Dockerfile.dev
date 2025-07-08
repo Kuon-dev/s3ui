@@ -1,0 +1,18 @@
+# Development Dockerfile for hot reload
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose development port
+EXPOSE 4713
+
+# Start development server
+CMD ["npm", "run", "dev"]

@@ -15,8 +15,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate file object
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: 'Invalid file object' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file name
+    if (!file.name || typeof file.name !== 'string' || file.name.trim() === '') {
+      return NextResponse.json(
+        { error: 'File must have a valid name' },
+        { status: 400 }
+      );
+    }
+
+    // Check file size
+    if (file.size === 0) {
+      return NextResponse.json(
+        { error: 'File is empty' },
+        { status: 400 }
+      );
+    }
+
+    // Check max file size (100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: `File too large. Maximum size is ${maxSize / 1024 / 1024}MB` },
+        { status: 400 }
+      );
+    }
+
+    // Sanitize filename
+    const sanitizedFileName = file.name
+      .replace(/[<>:"/\\|?*]/g, '')
+      .replace(/\.\./g, '')
+      .trim();
+
+    if (!sanitizedFileName) {
+      return NextResponse.json(
+        { error: 'Invalid filename after sanitization' },
+        { status: 400 }
+      );
+    }
+
     // Create the key by combining path and filename
-    const key = path ? `${path}/${file.name}` : file.name;
+    const key = path ? `${path}/${sanitizedFileName}` : sanitizedFileName;
 
     // Convert File to Buffer for upload
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -40,7 +86,9 @@ export async function POST(request: NextRequest) {
       success: true,
       key,
       size: file.size,
-      contentType: file.type,
+      contentType: file.type || 'application/octet-stream',
+      filename: sanitizedFileName,
+      originalFilename: file.name,
       etag: result.ETag,
     });
   } catch (error) {

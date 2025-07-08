@@ -531,6 +531,7 @@ export function validationErrorsToApiError(errors: ValidationError[]): ApiError 
  * @internal
  */
 function getFileExtension(filename: string): string {
+  if (!filename || typeof filename !== 'string') return '';
   const lastDot = filename.lastIndexOf('.');
   return lastDot === -1 ? '' : filename.substring(lastDot);
 }

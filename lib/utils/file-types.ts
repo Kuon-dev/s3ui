@@ -521,6 +521,16 @@ const FILE_TYPE_MAP: Record<string, FileTypeInfo> = {
  * @public
  */
 export function getFileType(filename: string): FileTypeInfo {
+  if (!filename || typeof filename !== 'string') {
+    return {
+      category: FileCategory.UNKNOWN,
+      mimeType: 'application/octet-stream',
+      description: 'Unknown File',
+      previewable: false,
+      iconColor: 'text-gray-400',
+    };
+  }
+  
   const extension = getFileExtension(filename);
   
   return FILE_TYPE_MAP[extension] || {
@@ -547,6 +557,7 @@ export function getFileType(filename: string): FileTypeInfo {
  * @public
  */
 export function getFileExtension(filename: string): string {
+  if (!filename || typeof filename !== 'string') return '';
   const parts = filename.split('.');
   if (parts.length < 2) return '';
   return parts.pop()!.toLowerCase();
@@ -571,6 +582,10 @@ export function getFileExtension(filename: string): string {
 export function getFileIcon(filename: string, isFolder: boolean = false, isOpen: boolean = false) {
   if (isFolder) {
     return isOpen ? FolderOpen : Folder;
+  }
+
+  if (!filename || typeof filename !== 'string') {
+    return File;
   }
 
   const fileType = getFileType(filename);
@@ -651,6 +666,7 @@ export function getFileIcon(filename: string, isFolder: boolean = false, isOpen:
  * @public
  */
 export function isPreviewable(filename: string): boolean {
+  if (!filename || typeof filename !== 'string') return false;
   return getFileType(filename).previewable;
 }
 

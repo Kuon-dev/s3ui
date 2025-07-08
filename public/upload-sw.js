@@ -37,8 +37,18 @@ self.addEventListener('message', async (event) => {
 async function handleUpload(data, port) {
   const { file, uploadId, path } = data;
   
+  // Validate inputs
+  if (!file || !file.name) {
+    port.postMessage({
+      type: 'UPLOAD_FAILED',
+      uploadId,
+      error: 'Invalid file object or missing filename',
+    });
+    return;
+  }
+
   activeUploads.set(uploadId, {
-    filename: file.name,
+    filename: file.name || 'unnamed_file',
     progress: 0,
     status: 'uploading',
     controller: new AbortController(),

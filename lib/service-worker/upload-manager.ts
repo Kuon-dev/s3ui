@@ -50,6 +50,20 @@ export class UploadManager {
       throw new Error('Service Worker not initialized');
     }
 
+    // Validate file input
+    if (!file || !(file instanceof File)) {
+      throw new Error('Invalid file object provided');
+    }
+
+    if (!file.name || typeof file.name !== 'string') {
+      throw new Error('File must have a valid name');
+    }
+
+    // Validate path
+    if (typeof path !== 'string') {
+      throw new Error('Path must be a string');
+    }
+
     const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     return new Promise((resolve, reject) => {

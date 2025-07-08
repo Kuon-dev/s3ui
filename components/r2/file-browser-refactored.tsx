@@ -44,7 +44,8 @@ import { getFileIcon, getFileType, FileCategory } from '@/lib/utils/file-types';
 import { stagger } from '@/lib/animations';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
-import { useR2Objects } from '@/lib/hooks/use-r2-queries';
+import { useR2Objects, r2QueryKeys } from '@/lib/hooks/use-r2-queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { UtilityHeader } from './utility-header';
 import { cn } from '@/lib/utils';
 
@@ -67,6 +68,12 @@ function FileItem({
   
   const { setCurrentPath, viewMode } = useFileBrowserStore();
   
+  // Ensure object.key exists and is a string
+  if (!object.key || typeof object.key !== 'string') {
+    console.error('Invalid object key:', object);
+    return null;
+  }
+
   const filename = object.isFolder 
     ? object.key.replace(/\/$/, '').split('/').pop() || object.key.replace(/\/$/, '')
     : object.key.split('/').pop() || object.key;
@@ -173,7 +180,7 @@ function FileItem({
       <ContextMenuTrigger asChild>
         <div
           ref={itemRef}
-          className="group glass-subtle rounded-lg p-4 mb-2 cursor-pointer transition-all duration-200 opacity-0 hover:shadow-md hover:bg-card/70"
+          className="group glass-subtle rounded-lg p-4 mb-2 cursor-pointer transition-all duration-200 hover:bg-accent/50"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           onClick={handleClick}
@@ -212,7 +219,7 @@ function FileItem({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate animated-underline">
+                <p className="text-sm font-medium text-foreground truncate">
                   {filename}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -372,6 +379,13 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
   
   // React Query
   const { data: objects = [], isLoading, refetch } = useR2Objects(currentPath);
+  const queryClient = useQueryClient();
+  
+  // Enhanced refresh function that also refreshes sidebar
+  const refreshAll = useCallback(() => {
+    refreshAll();
+    queryClient.invalidateQueries({ queryKey: r2QueryKeys.all });
+  }, [refetch, queryClient]);
   
   // Initialize path
   useEffect(() => {
@@ -425,7 +439,7 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
     {
       key: 'r',
       ctrl: true,
-      handler: () => refetch(),
+      handler: () => refreshAll(),
       description: 'Refresh'
     }
   ]);
@@ -521,17 +535,50 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
   };
 
   const handleFileUpload = async (files: FileList) => {
+    if (!files || files.length === 0) {
+      toast.error('No files selected');
+      return;
+    }
+
+    // Validate files before upload
+    const validFiles: File[] = [];
     for (const file of Array.from(files)) {
+      if (!file || !(file instanceof File)) {
+        toast.error('Invalid file detected');
+        continue;
+      }
+      if (!file.name || typeof file.name !== 'string') {
+        toast.error('File with invalid name detected');
+        continue;
+      }
+      if (file.size === 0) {
+        toast.error(`File "${file.name}" is empty`);
+        continue;
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error(`File "${file.name}" is too large (max 100MB)`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) {
+      toast.error('No valid files to upload');
+      return;
+    }
+
+    for (const file of validFiles) {
       try {
         await uploadManager.uploadFile(file, currentPath, (progress) => {
           toast.info(`Uploading ${file.name}: ${progress.progress}%`);
         });
         toast.success(`${file.name} uploaded successfully`);
-      } catch {
-        toast.error(`Failed to upload ${file.name}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`Failed to upload ${file.name}: ${errorMessage}`);
       }
     }
-    refetch();
+    refreshAll();
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -619,13 +666,15 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
                   </div>
                 ) : (
                   <div className={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4' : ''}>
-                    {filteredObjects.map((object, index) => (
-                      <FileItem
-                        key={object.key}
-                        object={object}
-                        index={index}
-                        onAction={handleObjectAction}
-                      />
+                    {filteredObjects
+                      .filter(object => object && object.key && typeof object.key === 'string')
+                      .map((object, index) => (
+                        <FileItem
+                          key={object.key}
+                          object={object}
+                          index={index}
+                          onAction={handleObjectAction}
+                        />
                     ))}
                   </div>
                 )}
@@ -644,14 +693,14 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
         isOpen={showUploadDialog}
         onClose={() => setShowUploadDialog(false)}
         currentPath={currentPath}
-        onUploadComplete={refetch}
+        onUploadComplete={refreshAll}
       />
       
       <CreateFolderDialog
         isOpen={showCreateFolderDialog}
         onClose={() => setShowCreateFolderDialog(false)}
         currentPath={currentPath}
-        onFolderCreated={refetch}
+        onFolderCreated={refreshAll}
       />
 
       {selectedObject && (
@@ -663,7 +712,7 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
               setSelectedObject(null);
             }}
             object={selectedObject}
-            onRenamed={refetch}
+            onRenamed={refreshAll}
           />
           
           <DeleteDialog
@@ -673,7 +722,7 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
               setSelectedObject(null);
             }}
             object={selectedObject}
-            onDeleted={refetch}
+            onDeleted={refreshAll}
           />
           
           <FilePreviewDialog

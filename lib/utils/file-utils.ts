@@ -53,6 +53,18 @@ export interface FileValidationResult {
 export function validateFile(file: File): FileValidationResult {
   const errors: string[] = [];
 
+  // Check if file exists and has valid properties
+  if (!file || !(file instanceof File)) {
+    errors.push('Invalid file object.');
+    return { isValid: false, errors };
+  }
+
+  // Check if file has a name
+  if (!file.name || typeof file.name !== 'string') {
+    errors.push('File must have a valid name.');
+    return { isValid: false, errors };
+  }
+
   // Check file size
   if (file.size > MAX_FILE_SIZE) {
     errors.push(`File "${file.name}" is too large. Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`);
@@ -88,6 +100,18 @@ export function validateFile(file: File): FileValidationResult {
 export function validateFiles(files: File[]): FileValidationResult {
   const errors: string[] = [];
 
+  // Check if files array is valid
+  if (!files || !Array.isArray(files)) {
+    errors.push('Invalid files array.');
+    return { isValid: false, errors };
+  }
+
+  // Check for empty array
+  if (files.length === 0) {
+    errors.push('No files selected.');
+    return { isValid: false, errors };
+  }
+
   // Check number of files
   if (files.length > MAX_FILES_PER_UPLOAD) {
     errors.push(`Too many files selected. Maximum is ${MAX_FILES_PER_UPLOAD} files per upload.`);
@@ -121,20 +145,24 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function getFileExtension(filename: string): string {
+  if (!filename || typeof filename !== 'string') return '';
   return filename.slice((filename.lastIndexOf('.') - 1 >>> 0) + 2);
 }
 
 export function isImageFile(filename: string): boolean {
+  if (!filename || typeof filename !== 'string') return false;
   const ext = getFileExtension(filename).toLowerCase();
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
 }
 
 export function isVideoFile(filename: string): boolean {
+  if (!filename || typeof filename !== 'string') return false;
   const ext = getFileExtension(filename).toLowerCase();
   return ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'].includes(ext);
 }
 
 export function isAudioFile(filename: string): boolean {
+  if (!filename || typeof filename !== 'string') return false;
   const ext = getFileExtension(filename).toLowerCase();
   return ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext);
 }
@@ -184,11 +212,16 @@ export function validateFolderName(name: string): FileValidationResult {
 }
 
 export function generateUniqueFileName(originalName: string, existingFiles: string[]): string {
+  if (!originalName || typeof originalName !== 'string') {
+    return `untitled_${Date.now()}`;
+  }
+  
   let fileName = originalName;
   let counter = 1;
   
-  const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.'));
-  const extension = originalName.substring(originalName.lastIndexOf('.'));
+  const lastDotIndex = originalName.lastIndexOf('.');
+  const nameWithoutExt = lastDotIndex > 0 ? originalName.substring(0, lastDotIndex) : originalName;
+  const extension = lastDotIndex > 0 ? originalName.substring(lastDotIndex) : '';
   
   while (existingFiles.includes(fileName)) {
     fileName = `${nameWithoutExt} (${counter})${extension}`;

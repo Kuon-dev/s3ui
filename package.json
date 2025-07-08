@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack -p 4713",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "docker:build": "docker build -t s3ui .",
+    "docker:run": "docker run -p 4713:3000 --env-file .env.local s3ui",
+    "docker:up": "docker-compose up --build",
+    "docker:dev": "docker-compose --profile dev up --build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.832.0",

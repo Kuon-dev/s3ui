@@ -45,8 +45,10 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const fileType = file ? getFileType(file.key) : null;
-  const filename = file ? file.key.split('/').pop() || file.key : '';
+  const fileType = file && file.key && typeof file.key === 'string' ? getFileType(file.key) : null;
+  const filename = file && file.key && typeof file.key === 'string' 
+    ? file.key.split('/').pop() || file.key 
+    : '';
 
   // Generate preview URL and load content when file changes
   useEffect(() => {
