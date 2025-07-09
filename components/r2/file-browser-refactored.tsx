@@ -646,18 +646,32 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
     refreshAll();
   };
 
+  // Use a ref to track drag enter/leave events to prevent flickering
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (dragCounter.current === 1) {
+      setIsDragging(true);
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    dragCounter.current = 0;
     setIsDragging(false);
     const files = e.dataTransfer.files;
     if (files.length > 0) {
@@ -707,6 +721,7 @@ export function FileBrowserRefactored({ initialPath = '' }: FileBrowserProps) {
               className={`flex-1 rounded-2xl overflow-hidden transition-all duration-200 ${
                 isDragging ? 'glass scale-[1.02]' : 'glass-subtle'
               }`}
+              onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
