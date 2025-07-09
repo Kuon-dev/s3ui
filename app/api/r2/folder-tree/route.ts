@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      tree,
+      folderTree: tree,
     });
   } catch (error) {
     console.error('Failed to get folder tree:', error);

@@ -53,7 +53,7 @@ export function useR2FolderTree(prefix: string = '') {
       }
       
       const data = await response.json();
-      return data.tree as TreeNode[];
+      return data.folderTree as TreeNode[] || [];
     },
     staleTime: 60 * 1000, // 1 minute
     gcTime: 10 * 60 * 1000, // 10 minutes

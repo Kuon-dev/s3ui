@@ -330,8 +330,9 @@ export async function getFolderTree(prefix: string = ''): Promise<FolderTreeNode
     Delimiter: '/',
   });
 
-  const response = await r2Client.send(command);
-  const items: FolderTreeNode[] = [];
+  try {
+    const response = await r2Client.send(command);
+    const items: FolderTreeNode[] = [];
 
   // Add folders (CommonPrefixes)
   if (response.CommonPrefixes) {
@@ -381,6 +382,17 @@ export async function getFolderTree(prefix: string = ''): Promise<FolderTreeNode
     if (!a.isFolder && b.isFolder) return 1;
     return a.name.localeCompare(b.name);
   });
+  } catch (error) {
+    // Handle NoSuchKey error (bucket doesn't exist or is empty)
+    if (error && typeof error === 'object') {
+      const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+      if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+        return [];
+      }
+    }
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 /**
