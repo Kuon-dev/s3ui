@@ -291,7 +291,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
                     >
                       <Clock className="h-4 w-4 text-muted-foreground" />
                       <span className="flex-1">{search}</span>
-                      {index === 0 && <Star className="h-3 w-3 text-yellow-500" />}
+                      {index === 0 && <Star className="h-3 w-3 text-warning" />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -325,7 +325,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
                   >
                     <FileIcon className={cn(
                       "h-4 w-4 flex-shrink-0",
-                      result.isFolder ? "text-blue-500" : fileType?.iconColor || "text-muted-foreground"
+                      result.isFolder ? "text-primary" : fileType?.iconColor || "text-muted-foreground"
                     )} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -375,7 +375,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
       </CommandList>
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-white/10 px-3 py-2">
+      <div className="flex items-center justify-between border-t border-border px-3 py-2">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted rounded">↑↓</kbd>

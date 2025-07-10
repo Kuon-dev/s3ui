@@ -132,7 +132,7 @@ export function RenameDialog({
             />
           </div>
 
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-muted-foreground">
             Current name: {getCurrentName()}
           </div>
         </div>

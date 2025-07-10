@@ -75,13 +75,13 @@ export function DeleteDialog({
           <p className="text-sm">
             Are you sure you want to delete &ldquo;{getItemName()}&rdquo;?
             {object?.isFolder && (
-              <span className="block mt-1 text-red-600 font-medium">
+              <span className="block mt-1 text-destructive font-medium">
                 This will also delete all files and folders inside it.
               </span>
             )}
           </p>
           
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             This action cannot be undone.
           </p>
         </div>

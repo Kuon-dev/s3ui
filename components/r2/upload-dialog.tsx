@@ -224,11 +224,11 @@ export function UploadDialog({
       case 'pending':
         return <Clock className="h-4 w-4 text-muted-foreground" />;
       case 'uploading':
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+        return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-success" />;
       case 'failed':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-destructive" />;
     }
   };
 
@@ -237,10 +237,10 @@ export function UploadDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0 glass-subtle bg-background/95 backdrop-blur-xl border-white/10">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0 glass-subtle bg-background/95 backdrop-blur-xl border-border">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            <Cloud className="h-5 w-5 text-blue-500" />
+            <Cloud className="h-5 w-5 text-primary" />
             Upload Files
           </DialogTitle>
         </DialogHeader>
@@ -251,8 +251,8 @@ export function UploadDialog({
             className={cn(
               "relative border-2 border-dashed rounded-xl transition-all duration-200 overflow-hidden",
               isDragging 
-                ? "border-blue-500 bg-blue-500/10 scale-[1.02]" 
-                : "border-white/20 bg-white/5 hover:border-white/30 hover:bg-white/10",
+                ? "border-primary bg-primary/10 scale-[1.02]" 
+                : "border-border bg-muted/50 hover:border-border hover:bg-muted",
               "cursor-pointer"
             )}
             onDragOver={handleDragOver}
@@ -263,10 +263,10 @@ export function UploadDialog({
             <div className="p-8 text-center">
               <div className={cn(
                 "inline-flex p-4 rounded-2xl mb-4 transition-all duration-200",
-                isDragging ? "bg-blue-500/20 scale-110" : "bg-white/10"
+                isDragging ? "bg-primary/20 scale-110" : "bg-muted"
               )}>
                 {isDragging ? (
-                  <Sparkles className="h-8 w-8 text-blue-500" />
+                  <Sparkles className="h-8 w-8 text-primary" />
                 ) : (
                   <FileUp className="h-8 w-8 text-muted-foreground" />
                 )}
@@ -295,17 +295,17 @@ export function UploadDialog({
 
           {/* Validation Errors */}
           {validationErrors.length > 0 && (
-            <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4">
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-red-500">Cannot upload these files</p>
-                  <ul className="text-sm text-red-400 space-y-1">
+                  <p className="text-sm font-medium text-destructive">Cannot upload these files</p>
+                  <ul className="text-sm text-destructive/80 space-y-1">
                     {validationErrors.slice(0, 3).map((error, index) => (
                       <li key={index}>{error}</li>
                     ))}
                     {validationErrors.length > 3 && (
-                      <li className="text-red-500">...and {validationErrors.length - 3} more errors</li>
+                      <li className="text-destructive">...and {validationErrors.length - 3} more errors</li>
                     )}
                   </ul>
                 </div>
@@ -352,18 +352,18 @@ export function UploadDialog({
                       key={fileWrapper.id}
                       className={cn(
                         "group relative rounded-lg transition-all duration-200",
-                        "glass-subtle border border-white/10",
-                        fileWrapper.status === 'failed' && "border-red-500/50 bg-red-500/5"
+                        "glass-subtle border border-border",
+                        fileWrapper.status === 'failed' && "border-destructive/50 bg-destructive/5"
                       )}
                     >
                       <div className="p-3">
                         <div className="flex items-start gap-3">
                           <div className={cn(
                             "rounded-lg p-2 transition-colors",
-                            fileWrapper.status === 'completed' && "bg-green-500/10",
-                            fileWrapper.status === 'uploading' && "bg-blue-500/10",
-                            fileWrapper.status === 'failed' && "bg-red-500/10",
-                            fileWrapper.status === 'pending' && "bg-white/5"
+                            fileWrapper.status === 'completed' && "bg-success/10",
+                            fileWrapper.status === 'uploading' && "bg-primary/10",
+                            fileWrapper.status === 'failed' && "bg-destructive/10",
+                            fileWrapper.status === 'pending' && "bg-muted/50"
                           )}>
                             <FileIcon className={cn(
                               "h-5 w-5",
@@ -384,7 +384,7 @@ export function UploadDialog({
                                 {formatFileSize(fileWrapper.file.size)}
                               </span>
                               {fileWrapper.error && (
-                                <span className="text-xs text-red-400">
+                                <span className="text-xs text-destructive/80">
                                   {fileWrapper.error}
                                 </span>
                               )}
@@ -418,8 +418,8 @@ export function UploadDialog({
           )}
 
           {/* Current Path */}
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-white/5 border border-white/10">
-            <FolderOpen className="h-4 w-4 text-blue-500" />
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+            <FolderOpen className="h-4 w-4 text-primary" />
             <span className="text-sm text-muted-foreground">Upload to:</span>
             <span className="text-sm font-medium">/{currentPath || 'Root'}</span>
           </div>

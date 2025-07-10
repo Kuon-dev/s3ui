@@ -42,10 +42,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       return (
         <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-100 mb-4">
+            <h2 className="text-2xl font-bold text-foreground mb-4">
               Something went wrong
             </h2>
-            <p className="text-gray-400 mb-6 max-w-md">
+            <p className="text-muted-foreground mb-6 max-w-md">
               An unexpected error occurred while loading the file browser. Please try refreshing the page.
             </p>
             <div className="space-x-4">
@@ -63,10 +63,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </div>
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <details className="mt-6 text-left">
-                <summary className="cursor-pointer text-sm text-gray-400">
+                <summary className="cursor-pointer text-sm text-muted-foreground">
                   Error Details (Development)
                 </summary>
-                <pre className="mt-2 p-4 bg-gray-800 rounded text-xs overflow-auto text-gray-300">
+                <pre className="mt-2 p-4 bg-muted rounded text-xs overflow-auto text-muted-foreground">
                   {this.state.error.stack}
                 </pre>
               </details>

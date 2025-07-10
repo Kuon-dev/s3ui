@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { R2Object } from '@/lib/r2/operations';
 import { getFileType, FileCategory } from '@/lib/utils/file-types';
+import Draggable from 'react-draggable';
 
 interface FilePreviewDialogProps {
   isOpen: boolean;
@@ -44,6 +45,9 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
   // Audio/Video player state for future use
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Ref for draggable to avoid findDOMNode issues
+  const draggableRef = React.useRef<HTMLDivElement>(null);
 
   const fileType = file && file.key && typeof file.key === 'string' ? getFileType(file.key) : null;
   const filename = file && file.key && typeof file.key === 'string' 
@@ -192,17 +196,22 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
             <div className="relative overflow-hidden glass-subtle rounded-lg">
               <div className="overflow-auto max-h-[400px] min-h-[200px] flex items-center justify-center p-4">
                 {previewUrl && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={previewUrl}
-                    alt={filename}
-                    className="max-w-full max-h-full object-contain transition-transform"
-                    style={{
-                      transform: `scale(${imageScale}) rotate(${imageRotation}deg)`,
-                      transformOrigin: 'center',
-                    }}
-                    onError={() => setError('Failed to load image')}
-                  />
+                  <Draggable nodeRef={draggableRef}>
+                    <div ref={draggableRef} className="cursor-move hover:opacity-90 transition-opacity inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={previewUrl}
+                        alt={filename}
+                        className="max-w-full max-h-full object-contain transition-transform select-none"
+                        style={{
+                          transform: `scale(${imageScale}) rotate(${imageRotation}deg)`,
+                          transformOrigin: 'center',
+                        }}
+                        onError={() => setError('Failed to load image')}
+                        draggable={false}
+                      />
+                    </div>
+                  </Draggable>
                 )}
               </div>
             </div>

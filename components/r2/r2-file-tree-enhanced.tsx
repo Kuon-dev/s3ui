@@ -110,7 +110,7 @@ function TreeItem({
           )}
           <IconComponent className={cn(
             "h-4 w-4",
-            node.isFolder ? "text-blue-500" : "text-muted-foreground",
+            node.isFolder ? "text-primary" : "text-muted-foreground",
             isSelected && "text-primary"
           )} />
           <span className={cn(
@@ -278,7 +278,7 @@ export function R2FileTreeEnhanced({ currentPath, onNavigate, className }: R2Fil
           onClick={() => onNavigate('')}
         >
           <div className="flex items-center space-x-2">
-            <Folder className="h-4 w-4 text-blue-500" />
+            <Folder className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium">Root</span>
           </div>
         </Button>

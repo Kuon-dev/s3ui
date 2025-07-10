@@ -21,7 +21,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "flex h-full w-full flex-col overflow-hidden rounded-md",
+        "flex max-h-[600px] w-full flex-col overflow-hidden rounded-md",
         className
       )}
       {...props}
@@ -90,7 +90,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        "min-h-[200px] max-h-[500px] scroll-py-1 overflow-x-hidden overflow-y-auto",
         className
       )}
       {...props}

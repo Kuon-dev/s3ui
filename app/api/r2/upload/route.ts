@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file object
-    if (!(file instanceof File)) {
+    // Validate file object by checking required properties
+    if (!file || typeof file !== 'object' || !('name' in file) || !('size' in file)) {
       return NextResponse.json(
         { error: 'Invalid file object' },
         { status: 400 }

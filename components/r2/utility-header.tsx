@@ -17,12 +17,12 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { cn } from '@/lib/utils';
 import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 import { useR2Objects } from '@/lib/hooks/use-r2-queries';
 import { useStorageStats } from '@/lib/hooks/use-storage-stats';
 import { toast } from 'sonner';
-import { uploadManager } from '@/lib/service-worker/upload-manager';
 
 interface UtilityHeaderProps {
   className?: string;
@@ -48,7 +48,7 @@ export function UtilityHeader({ className }: UtilityHeaderProps) {
     const checkUploadStatus = () => {
       // This would integrate with your upload manager
       // For now, using mock data
-      const active = uploadManager.getActiveUploads?.()?.length || 0;
+      const active = 0; // uploadManager doesn't have getActiveUploads method
       setUploadProgress({ active, total: active });
     };
     
@@ -156,7 +156,7 @@ export function UtilityHeader({ className }: UtilityHeaderProps) {
             <>
               <div className="h-5 w-px bg-border" />
               <div className="flex items-center space-x-1.5">
-                <Activity className="h-3.5 w-3.5 text-green-500 animate-pulse" />
+                <Activity className="h-3.5 w-3.5 text-success animate-pulse" />
                 <span className="text-xs text-muted-foreground">
                   {uploadProgress.active} uploading
                 </span>
@@ -170,9 +170,9 @@ export function UtilityHeader({ className }: UtilityHeaderProps) {
           {/* Connection Status */}
           <div className="flex items-center space-x-1.5 mr-2">
             {isOnline ? (
-              <Wifi className="h-3.5 w-3.5 text-green-500" />
+              <Wifi className="h-3.5 w-3.5 text-success" />
             ) : (
-              <WifiOff className="h-3.5 w-3.5 text-red-500" />
+              <WifiOff className="h-3.5 w-3.5 text-destructive" />
             )}
             <span className="text-xs text-muted-foreground">
               {isOnline ? 'Connected' : 'Offline'}
@@ -241,6 +241,12 @@ export function UtilityHeader({ className }: UtilityHeaderProps) {
               ⌘K
             </kbd>
           </Button>
+          
+          {/* Separator */}
+          <div className="h-5 w-px bg-border" />
+          
+          {/* Theme Switcher */}
+          <ThemeSwitcher />
         </div>
       </div>
     </div>

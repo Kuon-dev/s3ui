@@ -1,6 +1,6 @@
 'use client';
 
-import { FileBrowserRefactored as FileBrowser } from '@/components/r2/file-browser-refactored';
+import { FileBrowserRedesigned } from '@/components/r2/file-browser-redesigned';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { useEffect, useState } from 'react';
 
@@ -22,7 +22,7 @@ export default function Home() {
   return (
     <div className="h-screen bg-background overflow-hidden animate-fade-in">
       <ErrorBoundary>
-        <FileBrowser />
+        <FileBrowserRedesigned />
       </ErrorBoundary>
     </div>
   );

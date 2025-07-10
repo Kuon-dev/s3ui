@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import {
   Upload,
@@ -13,9 +13,6 @@ import {
   Download,
   Eye,
   Search,
-  Copy,
-  Info,
-  FolderOpen,
   Clipboard,
   ClipboardPaste,
 } from 'lucide-react';
@@ -41,6 +38,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { DraggableFileRow } from './draggable-file-row';
+import { FileDropZone } from './file-drop-zone';
+import { DragItem } from '@/lib/dnd/types';
 import { toast } from 'sonner';
 import { R2Object } from '@/lib/r2/operations';
 import { uploadManager } from '@/lib/service-worker/upload-manager';
@@ -54,50 +54,68 @@ import { ResizablePanels } from '@/components/ui/resizable';
 import { GlobalSearch } from './global-search';
 import { FilePreviewDialog } from './file-preview-dialog';
 import { getFileIcon, getFileType } from '@/lib/utils/file-types';
-import { useClipboard } from '@/lib/contexts/clipboard-context';
+import { useFileBrowserStore, useFilteredObjects, useIsLoading } from '@/lib/stores/file-browser-store';
 
 interface FileBrowserProps {
   initialPath?: string;
 }
 
 export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
-  const [objects, setObjects] = useState<R2Object[]>([]);
-  const [currentPath, setCurrentPath] = useState(initialPath);
-  const [loading, setLoading] = useState(true);
-  const [selectedObject, setSelectedObject] = useState<R2Object | null>(null);
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
-  const [showRenameDialog, setShowRenameDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
-  const { clipboardItem, copy, paste, canPaste } = useClipboard();
+  const {
+    currentPath,
+    searchQuery,
+    selectedObject,
+    clipboardItem,
+    showUploadDialog,
+    showCreateFolderDialog,
+    showRenameDialog,
+    showDeleteDialog,
+    showPreviewDialog,
+    showGlobalSearch,
+    setCurrentPath,
+    navigateToFolder,
+    setSearchQuery,
+    setSelectedObject,
+    setShowUploadDialog,
+    setShowCreateFolderDialog,
+    setShowRenameDialog,
+    setShowDeleteDialog,
+    setShowPreviewDialog,
+    setShowGlobalSearch,
+    loadObjects,
+    refreshCurrentFolder,
+    renameObject,
+    copyToClipboard,
+    pasteFromClipboard,
+    canPaste,
+  } = useFileBrowserStore();
 
-  const loadObjects = useCallback(async () => {
-    setLoading(true);
-    try {
-      // For API calls, ensure folder paths end with '/' for proper prefix matching
-      const apiPrefix = currentPath && !currentPath.endsWith('/') ? `${currentPath}/` : currentPath;
-      const response = await fetch(`/api/r2/list?prefix=${encodeURIComponent(apiPrefix)}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setObjects(data.objects);
-      } else {
-        toast.error('Failed to load files');
-      }
-    } catch {
-      toast.error('Error loading files');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPath]);
+  const filteredObjects = useFilteredObjects();
+  const loading = useIsLoading(`objects-${currentPath}`);
 
   useEffect(() => {
     uploadManager.initialize();
-    loadObjects();
-  }, [currentPath, loadObjects]);
+    if (initialPath && initialPath !== currentPath) {
+      setCurrentPath(initialPath);
+    } else {
+      loadObjects(currentPath);
+    }
+  }, [initialPath, currentPath, setCurrentPath, loadObjects]);
+
+  const handleCopy = useCallback((object: R2Object) => {
+    const name = object.key.split('/').pop() || object.key;
+    copyToClipboard(object.key, name, object.isFolder);
+  }, [copyToClipboard]);
+
+  const handlePaste = useCallback(async () => {
+    if (!clipboardItem) return;
+    
+    try {
+      await pasteFromClipboard(currentPath);
+    } catch (error) {
+      console.error('Paste failed:', error);
+    }
+  }, [clipboardItem, pasteFromClipboard, currentPath]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -128,15 +146,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObject, clipboardItem, currentPath, canPaste, handleCopy, handlePaste]);
-
-  const handleNavigate = (path: string) => {
-    // For navigation, we always store paths without trailing slashes in state
-    // The trailing slash will be added when making API calls in loadObjects
-    const displayPath = path.endsWith('/') ? path.slice(0, -1) : path;
-    setCurrentPath(displayPath);
-  };
-
+  }, [selectedObject, clipboardItem, currentPath, canPaste, handleCopy, handlePaste, setShowGlobalSearch]);
 
   const handleDownload = async (object: R2Object) => {
     try {
@@ -165,14 +175,6 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     return currentPath.split('/').filter(Boolean);
   };
 
-  const filteredObjects = objects.filter(object => {
-    if (!searchQuery) return true;
-    const name = object.isFolder 
-      ? object.key.replace(/\/$/, '').split('/').pop() || ''
-      : object.key.split('/').pop() || '';
-    return name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
-
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -190,7 +192,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     const fileType = getFileType(filename);
     
     // Use color from file type for non-folders
-    const colorClass = object.isFolder ? 'text-blue-500' : fileType.iconColor;
+    const colorClass = object.isFolder ? 'text-primary' : fileType.iconColor;
     
     return <IconComponent className={`h-4 w-4 ${colorClass}`} />;
   };
@@ -212,7 +214,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         break;
       case 'open':
         if (object.isFolder) {
-          handleNavigate(object.key);
+          navigateToFolder(object.key).catch(console.error);
         } else {
           setShowPreviewDialog(true);
         }
@@ -242,22 +244,6 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     }
   };
 
-  const handleCopy = useCallback((object: R2Object) => {
-    const name = object.key.split('/').pop() || object.key;
-    copy(object.key, name, object.isFolder);
-  }, [copy]);
-
-  const handlePaste = useCallback(async () => {
-    if (!clipboardItem) return;
-    
-    try {
-      await paste(currentPath);
-      await loadObjects();
-    } catch (error) {
-      console.error('Paste failed:', error);
-    }
-  }, [clipboardItem, paste, currentPath, loadObjects]);
-
   const handleShowProperties = (object: R2Object) => {
     const filename = object.key.split('/').pop() || object.key;
     const fileType = getFileType(filename);
@@ -276,6 +262,51 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     });
   };
 
+  const handleDropOnFolder = useCallback(async (draggedItem: DragItem, targetObject: R2Object) => {
+    const destinationPath = targetObject.key.replace(/\/$/, '') + '/' + draggedItem.name;
+    
+    // Check if destination already exists
+    const destinationExists = filteredObjects.some(obj => obj.key === destinationPath || obj.key === `${destinationPath}/`);
+    if (destinationExists) {
+      toast.error(`A file or folder named "${draggedItem.name}" already exists in this location`);
+      return;
+    }
+    
+    // Perform move operation
+    const loadingToast = toast.loading(`Moving "${draggedItem.name}"...`);
+    
+    try {
+      await renameObject(draggedItem.key, destinationPath);
+      toast.dismiss(loadingToast);
+      toast.success(`Successfully moved "${draggedItem.name}"`);
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error(error instanceof Error ? error.message : 'Failed to move file');
+    }
+  }, [filteredObjects, renameObject]);
+
+  const handleDropToCurrentFolder = useCallback(async (draggedItem: DragItem) => {
+    const destinationPath = currentPath ? `${currentPath}/${draggedItem.name}` : draggedItem.name;
+    
+    // Check if destination already exists
+    const destinationExists = filteredObjects.some(obj => obj.key === destinationPath || obj.key === `${destinationPath}/`);
+    if (destinationExists) {
+      toast.error(`A file or folder named "${draggedItem.name}" already exists in this location`);
+      return;
+    }
+    
+    // Perform move operation
+    const loadingToast = toast.loading(`Moving "${draggedItem.name}"...`);
+    
+    try {
+      await renameObject(draggedItem.key, destinationPath);
+      toast.dismiss(loadingToast);
+      toast.success(`Successfully moved "${draggedItem.name}"`);
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error(error instanceof Error ? error.message : 'Failed to move file');
+    }
+  }, [currentPath, filteredObjects, renameObject]);
 
   const handleFileUpload = async (files: FileList) => {
     for (const file of Array.from(files)) {
@@ -288,19 +319,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         toast.error(`Failed to upload ${file.name}`);
       }
     }
-    loadObjects();
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileUpload(files);
-    }
+    refreshCurrentFolder();
   };
 
   return (
@@ -309,18 +328,18 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         leftPanel={
           <R2FileTree
             currentPath={currentPath}
-            onNavigate={handleNavigate}
+            onNavigate={navigateToFolder}
             className="h-full"
           />
         }
         rightPanel={
           <div className="h-full flex flex-col space-y-4 p-4">
             {/* Breadcrumb Navigation */}
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleNavigate('')}
+                onClick={async () => await navigateToFolder('')}
                 className="p-1"
               >
                 <Home className="h-4 w-4" />
@@ -331,10 +350,10 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       const pathParts = getBreadcrumbs().slice(0, index + 1);
                       const targetPath = pathParts.join('/');
-                      handleNavigate(targetPath);
+                      await navigateToFolder(targetPath);
                     }}
                     className="p-1"
                   >
@@ -348,7 +367,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
             <div className="flex items-center justify-between space-x-4">
               <div className="flex items-center space-x-2 flex-1 max-w-md">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search current folder..."
                     value={searchQuery}
@@ -393,10 +412,15 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
             </div>
 
             {/* File Table */}
-            <div
-              className="flex-1 border border-gray-800 rounded-lg bg-gray-900 overflow-hidden"
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
+            <FileDropZone
+              onDrop={handleDropToCurrentFolder}
+              onDropFiles={(files) => {
+                const fileList = new DataTransfer();
+                files.forEach(file => fileList.items.add(file));
+                handleFileUpload(fileList.files);
+              }}
+              currentPath={currentPath}
+              className="flex-1 border border-border rounded-lg bg-card overflow-hidden"
             >
               <div className="h-full overflow-auto">
                 <Table>
@@ -418,7 +442,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       </TableRow>
                     ) : filteredObjects.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-gray-400">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           {searchQuery ? 'No files or folders match your search.' : 'No files or folders found. Drag and drop files here or use the upload button.'}
                         </TableCell>
                       </TableRow>
@@ -426,20 +450,21 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       filteredObjects.map((object) => {
                         const isCopied = clipboardItem?.path === object.key;
                         return (
-                          <ContextMenu key={object.key}>
-                            <ContextMenuTrigger asChild>
-                              <TableRow 
-                                className={`cursor-pointer ${isCopied ? 'bg-blue-500/10 border-l-2 border-blue-500' : ''}`}
-                                onClick={() => setSelectedObject(object)}
-                              >
+                          <DraggableFileRow
+                            key={object.key}
+                            object={object}
+                            className={`${isCopied ? 'bg-primary/10 border-l-2 border-primary' : ''}`}
+                            onClick={() => setSelectedObject(object)}
+                          >
                                 <TableCell>
                                   <div className="flex items-center space-x-2">
                                     {getFileIconElement(object)}
                                     <button
                                       className="text-left hover:underline"
-                                      onClick={() => {
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
                                         if (object.isFolder) {
-                                          handleNavigate(object.key);
+                                          await navigateToFolder(object.key);
                                         } else {
                                           handleObjectAction(object, 'open');
                                         }
@@ -452,7 +477,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                                         }
                                       </span>
                                       {isCopied && (
-                                        <span className="ml-2 text-xs text-blue-500">(copied)</span>
+                                        <span className="ml-2 text-xs text-primary">(copied)</span>
                                       )}
                                     </button>
                                   </div>
@@ -514,7 +539,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       onClick={() => handleObjectAction(object, 'delete')}
-                                      className="text-red-600"
+                                      className="text-destructive"
                                     >
                                       <Trash2 className="h-4 w-4 mr-2" />
                                       Delete
@@ -522,90 +547,14 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </TableCell>
-                            </TableRow>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            {/* Primary Actions */}
-                            <ContextMenuItem onClick={() => handleObjectAction(object, 'open')}>
-                              {object.isFolder ? (
-                                <>
-                                  <FolderOpen className="h-4 w-4 mr-2" />
-                                  Open Folder
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Open
-                                </>
-                              )}
-                            </ContextMenuItem>
-                            
-                            {!object.isFolder && getFileType(object.key).previewable && (
-                              <ContextMenuItem onClick={() => handleObjectAction(object, 'preview')}>
-                                <Eye className="h-4 w-4 mr-2" />
-                                Preview
-                              </ContextMenuItem>
-                            )}
-                            
-                            {!object.isFolder && (
-                              <ContextMenuItem onClick={() => handleObjectAction(object, 'download')}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </ContextMenuItem>
-                            )}
-                            
-                            <ContextMenuSeparator />
-                            
-                            {/* File Operations */}
-                            <ContextMenuItem onClick={() => handleObjectAction(object, 'copy')}>
-                              <Clipboard className="h-4 w-4 mr-2" />
-                              Copy
-                            </ContextMenuItem>
-                            
-                            {clipboardItem && canPaste(currentPath) && (
-                              <ContextMenuItem onClick={() => handleObjectAction(object, 'paste')}>
-                                <ClipboardPaste className="h-4 w-4 mr-2" />
-                                Paste &quot;{clipboardItem.name}&quot; here
-                              </ContextMenuItem>
-                            )}
-                            
-                            <ContextMenuItem onClick={() => handleObjectAction(object, 'rename')}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Rename
-                            </ContextMenuItem>
-                            
-                            <ContextMenuItem onClick={() => handleObjectAction(object, 'copyUrl')}>
-                              <Copy className="h-4 w-4 mr-2" />
-                              Copy URL
-                            </ContextMenuItem>
-                            
-                            <ContextMenuSeparator />
-                            
-                            {/* Information */}
-                            <ContextMenuItem onClick={() => handleObjectAction(object, 'properties')}>
-                              <Info className="h-4 w-4 mr-2" />
-                              Properties
-                            </ContextMenuItem>
-                            
-                            <ContextMenuSeparator />
-                            
-                            {/* Danger Zone */}
-                            <ContextMenuItem 
-                              onClick={() => handleObjectAction(object, 'delete')}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
+                            </DraggableFileRow>
                         );
                       })
                     )}
                   </TableBody>
                 </Table>
               </div>
-            </div>
+            </FileDropZone>
           </div>
         }
         defaultLeftWidth={280}
@@ -618,14 +567,14 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         isOpen={showUploadDialog}
         onClose={() => setShowUploadDialog(false)}
         currentPath={currentPath}
-        onUploadComplete={loadObjects}
+        onUploadComplete={refreshCurrentFolder}
       />
       
       <CreateFolderDialog
         isOpen={showCreateFolderDialog}
         onClose={() => setShowCreateFolderDialog(false)}
         currentPath={currentPath}
-        onFolderCreated={loadObjects}
+        onFolderCreated={refreshCurrentFolder}
       />
 
       {selectedObject && (
@@ -637,7 +586,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               setSelectedObject(null);
             }}
             object={selectedObject}
-            onRenamed={loadObjects}
+            onRenamed={refreshCurrentFolder}
           />
           
           <DeleteDialog
@@ -647,7 +596,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               setSelectedObject(null);
             }}
             object={selectedObject}
-            onDeleted={loadObjects}
+            onDeleted={refreshCurrentFolder}
           />
           
           <FilePreviewDialog
@@ -665,7 +614,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       <GlobalSearch
         isOpen={showGlobalSearch}
         onClose={() => setShowGlobalSearch(false)}
-        onNavigate={handleNavigate}
+        onNavigate={navigateToFolder}
       />
     </div>
   );
