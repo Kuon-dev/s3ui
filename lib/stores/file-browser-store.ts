@@ -11,10 +11,11 @@ interface ClipboardItem {
   timestamp: number;
 }
 
-interface DragItem {
+export interface DragItem {
   key: string;
   name: string;
   isFolder: boolean;
+  selectedKeys?: string[];
 }
 
 interface FileBrowserState {
@@ -48,14 +49,19 @@ interface FileBrowserState {
   showDeleteDialog: boolean;
   showPreviewDialog: boolean;
   showGlobalSearch: boolean;
+  
+  // Cache management
+  lastFetched: Map<string, number>;
+  cacheTimeout: number; // in milliseconds
   selectedObject: R2Object | null;
   
   // File Operations
-  loadObjects: (prefix?: string) => Promise<void>;
+  loadObjects: (prefix?: string, forceRefresh?: boolean) => Promise<void>;
   loadFolderTree: (prefix?: string) => Promise<void>;
   refreshCurrentFolder: () => Promise<void>;
   deleteObject: (key: string) => Promise<void>;
-  renameObject: (oldKey: string, newKey: string) => Promise<void>;
+  renameObject: (oldKey: string, newKey: string, isMove?: boolean) => Promise<void>;
+  moveObject: (oldKey: string, newKey: string) => Promise<void>;
   createFolder: (name: string) => Promise<void>;
   
   // Navigation
@@ -137,11 +143,28 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       showPreviewDialog: false,
       showGlobalSearch: false,
       selectedObject: null,
+      lastFetched: new Map(),
+      cacheTimeout: 60000, // 60 seconds
       
       // File Operations
-      loadObjects: async (prefix?: string) => {
+      loadObjects: async (prefix?: string, forceRefresh = false) => {
         const path = prefix ?? get().currentPath;
         const loadingKey = `objects-${path}`;
+        const { objects, lastFetched, cacheTimeout } = get();
+        
+        // Check cache
+        if (!forceRefresh) {
+          const cachedObjects = objects.get(path);
+          const lastFetchTime = lastFetched.get(path);
+          
+          if (cachedObjects && lastFetchTime) {
+            const now = Date.now();
+            if (now - lastFetchTime < cacheTimeout) {
+              // Cache is still valid
+              return;
+            }
+          }
+        }
         
         get().setLoading(loadingKey, true);
         try {
@@ -151,7 +174,8 @@ export const useFileBrowserStore = create<FileBrowserState>()(
           
           if (response.ok) {
             set(state => ({
-              objects: new Map(state.objects).set(path, data.objects)
+              objects: new Map(state.objects).set(path, data.objects),
+              lastFetched: new Map(state.lastFetched).set(path, Date.now())
             }));
           } else {
             toast.error('Failed to load files');
@@ -210,7 +234,7 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       refreshCurrentFolder: async () => {
         const { currentPath, loadObjects, loadFolderTree } = get();
         await Promise.all([
-          loadObjects(currentPath),
+          loadObjects(currentPath, true), // Force refresh
           loadFolderTree(currentPath ? `${currentPath}/` : '')
         ]);
       },
@@ -240,7 +264,7 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         }
       },
       
-      renameObject: async (oldKey: string, newKey: string) => {
+      renameObject: async (oldKey: string, newKey: string, isMove = false) => {
         const loadingKey = `rename-${oldKey}`;
         get().setLoading(loadingKey, true);
         
@@ -252,17 +276,32 @@ export const useFileBrowserStore = create<FileBrowserState>()(
           });
           
           if (response.ok) {
-            toast.success('Renamed successfully');
+            toast.success(isMove ? 'Moved successfully' : 'Renamed successfully');
+            // Invalidate cache for source and destination folders
+            const sourceFolder = getParentPath(oldKey);
+            const destFolder = getParentPath(newKey);
+            set(state => {
+              const newLastFetched = new Map(state.lastFetched);
+              newLastFetched.delete(sourceFolder);
+              if (destFolder !== sourceFolder) {
+                newLastFetched.delete(destFolder);
+              }
+              return { lastFetched: newLastFetched };
+            });
             await get().refreshCurrentFolder();
           } else {
             const error = await response.json();
-            throw new Error(error.message || 'Failed to rename');
+            throw new Error(error.message || (isMove ? 'Failed to move' : 'Failed to rename'));
           }
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Failed to rename');
+          toast.error(error instanceof Error ? error.message : (isMove ? 'Failed to move' : 'Failed to rename'));
         } finally {
           get().setLoading(loadingKey, false);
         }
+      },
+      
+      moveObject: async (oldKey: string, newKey: string) => {
+        await get().renameObject(oldKey, newKey, true);
       },
       
       createFolder: async (name: string) => {
@@ -485,58 +524,94 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       
       // Drag State Management
       startDragging: (item) => {
-        const { objects, currentPath } = get();
+        const { objects, currentPath, selectedObjects } = get();
         const currentObjects = objects.get(currentPath) || [];
+        
+        // If the dragged item is in selection, include all selected items
+        const selectedKeys = selectedObjects.has(item.key) 
+          ? Array.from(selectedObjects)
+          : undefined;
         
         // Find all folders that can be drop targets
         const validTargets = new Set<string>();
         
+        // Helper to check if any selected item would be invalid for a target
+        const isValidDropTarget = (targetKey: string) => {
+          const itemsToCheck = selectedKeys || [item.key];
+          
+          return itemsToCheck.every(key => {
+            // Can't drop into same location
+            if (key === targetKey) return false;
+            
+            // Find the object
+            const obj = currentObjects.find(o => o.key === key);
+            if (!obj) return true;
+            
+            // Can't drop a folder into its child
+            if (obj.isFolder && targetKey.startsWith(key)) return false;
+            
+            return true;
+          });
+        };
+        
         // Add folders in current view
         currentObjects.forEach(obj => {
-          if (obj.isFolder && obj.key !== item.key) {
-            // Can't drop a folder into its child
-            if (!(item.isFolder && obj.key.startsWith(item.key))) {
-              validTargets.add(obj.key);
-            }
+          if (obj.isFolder && isValidDropTarget(obj.key)) {
+            validTargets.add(obj.key);
           }
         });
         
-        // Add parent folder if not root and not the item itself
-        if (currentPath && currentPath !== item.key) {
-          // Can't drop a folder into its child
-          if (!(item.isFolder && currentPath.startsWith(item.key))) {
-            validTargets.add(currentPath);
+        // Add parent folder if not root
+        if (currentPath) {
+          const parentPath = getParentPath(currentPath);
+          // Parent path is valid if it's root (empty string) or a valid drop target
+          if (parentPath === '' || isValidDropTarget(parentPath)) {
+            validTargets.add(parentPath);
           }
+        }
+        
+        // Add all folders from the tree that are valid
+        const addFoldersFromTree = (tree: FolderTreeNode[]) => {
+          tree.forEach(node => {
+            if (isValidDropTarget(node.path)) {
+              validTargets.add(node.path);
+            }
+            if (node.children) {
+              addFoldersFromTree(node.children);
+            }
+          });
+        };
+        
+        const { folderTree } = get();
+        addFoldersFromTree(folderTree);
+        
+        // Also add root folder as a valid target
+        if (isValidDropTarget('')) {
+          validTargets.add('');
         }
         
         console.log('[Store] Starting drag:', {
           item: item.key,
+          selectedKeys,
           currentPath,
           validTargets: Array.from(validTargets),
-          currentObjects: currentObjects.map(obj => ({ key: obj.key, isFolder: obj.isFolder }))
         });
         
         set({ 
-          draggingItem: item,
+          draggingItem: { ...item, selectedKeys },
           validDropTargets: validTargets,
           currentDropTarget: null
         });
       },
       
-      stopDragging: async () => {
-        const { currentDropTarget, handleDrop, draggingItem } = get();
-        
-        // Immediately clear the drag state to prevent multiple calls
+      stopDragging: () => {
+        // Just clear the drag state
+        // The actual drop is handled by the drop event
         set({ 
           draggingItem: null,
           currentDropTarget: null,
           validDropTargets: new Set()
         });
-        
-        // If there was a current drop target and dragging item, handle the drop
-        if (currentDropTarget && draggingItem) {
-          await handleDrop(currentDropTarget);
-        }
       },
       
       setCurrentDropTarget: (target) => {
@@ -544,40 +619,139 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       },
       
       canDrop: (draggedItem, targetPath) => {
-        const { validDropTargets } = get();
-        return validDropTargets.has(targetPath);
+        const { draggingItem } = get();
+        
+        // No item being dragged
+        if (!draggingItem) return false;
+        
+        // Can't drop into the same location
+        const draggedItemPath = draggedItem.key.endsWith('/') 
+          ? draggedItem.key.slice(0, -1) 
+          : draggedItem.key;
+        const draggedItemParent = getParentPath(draggedItemPath);
+        
+        if (draggedItemParent === targetPath) return false;
+        
+        // Can't drop a folder into itself
+        if (draggedItem.isFolder && targetPath.startsWith(draggedItemPath)) {
+          return false;
+        }
+        
+        // If multiple items selected, check all of them
+        if (draggedItem.selectedKeys) {
+          return draggedItem.selectedKeys.every(key => {
+            const itemPath = key.endsWith('/') ? key.slice(0, -1) : key;
+            const itemParent = getParentPath(itemPath);
+            
+            // Can't drop into same location
+            if (itemParent === targetPath) return false;
+            
+            // Can't drop folder into its child
+            if (key.endsWith('/') && targetPath.startsWith(itemPath)) {
+              return false;
+            }
+            
+            return true;
+          });
+        }
+        
+        return true;
       },
       
       handleDrop: async (targetPath) => {
-        const { draggingItem, renameObject } = get();
+        const { draggingItem, moveObject, objects, currentPath, validDropTargets, canDrop } = get();
         if (!draggingItem) return;
+        
+        // First check if drop is allowed
+        if (!canDrop(draggingItem, targetPath)) {
+          toast.error('Cannot move items to this location');
+          return;
+        }
+        
+        // Check if this is a known valid target
+        const isKnownValid = validDropTargets.has(targetPath) || targetPath === '';
+        
+        // If not known, verify it's a valid folder by checking if it exists
+        if (!isKnownValid) {
+          try {
+            // Try to list objects in the target folder to verify it exists
+            const response = await fetch(`/api/r2/list?prefix=${encodeURIComponent(targetPath + '/')}`);
+            if (!response.ok) {
+              toast.error(`Folder "${targetPath}" does not exist`);
+              return;
+            }
+          } catch {
+            toast.error('Failed to verify target folder');
+            return;
+          }
+        }
         
         // Ensure target path ends with / for folder destinations
         const normalizedTargetPath = ensureFolderPath(targetPath);
-        const destinationPath = normalizedTargetPath + draggingItem.name;
         
-        // Check if we're trying to move to the same location
-        if (draggingItem.key === destinationPath) {
-          toast.info(`"${draggingItem.name}" is already in this location`);
+        // Get items to move (either selected items or just the dragged item)
+        const itemsToMove = draggingItem.selectedKeys 
+          ? draggingItem.selectedKeys
+          : [draggingItem.key];
+        
+        // Filter out items that are already in the target location
+        const validItemsToMove = itemsToMove.filter(key => {
+          const itemName = key.split('/').pop() || key;
+          const destinationPath = normalizedTargetPath + itemName;
+          return key !== destinationPath;
+        });
+        
+        if (validItemsToMove.length === 0) {
+          toast.info('All items are already in this location');
           return;
         }
         
         console.log('[Store] Handling drop:', {
           draggingItem: draggingItem.key,
           targetPath: normalizedTargetPath,
-          destinationPath
+          itemsToMove: validItemsToMove
         });
         
-        // Perform move operation
-        const loadingToast = toast.loading(`Moving "${draggingItem.name}"...`);
+        // Clear drag state immediately to prevent double handling
+        set({ 
+          draggingItem: null,
+          currentDropTarget: null,
+          validDropTargets: new Set()
+        });
+        
+        // Perform move operations
+        const itemCount = validItemsToMove.length;
+        const loadingToast = toast.loading(
+          itemCount > 1 
+            ? `Moving ${itemCount} items...`
+            : `Moving "${draggingItem.name}"...`
+        );
         
         try {
-          await renameObject(draggingItem.key, destinationPath);
+          // Move all items
+          const currentObjects = objects.get(currentPath) || [];
+          const movePromises = validItemsToMove.map(async (key) => {
+            const obj = currentObjects.find(o => o.key === key);
+            const itemName = key.split('/').pop() || key;
+            const destinationPath = normalizedTargetPath + itemName;
+            
+            if (obj?.isFolder) {
+              // For folders, ensure the key ends with /
+              const folderKey = ensureFolderPath(key);
+              const folderDestPath = ensureFolderPath(destinationPath);
+              await moveObject(folderKey, folderDestPath);
+            } else {
+              await moveObject(key, destinationPath);
+            }
+          });
+          
+          await Promise.all(movePromises);
+          
           toast.dismiss(loadingToast);
-          toast.success(`Successfully moved "${draggingItem.name}"`);
-        } catch (error) {
+          // Success toast is already shown by moveObject
+        } catch {
           toast.dismiss(loadingToast);
-          toast.error(error instanceof Error ? error.message : 'Failed to move file');
+          // Error toast is already shown by moveObject
         }
       },
       
