@@ -101,6 +101,94 @@ export function FolderSidebar({ currentPath, onNavigate, className = '' }: Folde
   const [folderTree, setFolderTree] = useState<FolderTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['']));
+  const [allFoldersLoaded, setAllFoldersLoaded] = useState(false);
+
+  // Build a complete tree structure from a flat list of folder paths
+  const buildTreeFromFlatList = (folderPaths: string[]): FolderTreeNode[] => {
+    interface TreeNode extends FolderTreeNode {
+      _childrenMap?: { [key: string]: TreeNode };
+    }
+    
+    const root: { [key: string]: TreeNode } = {};
+    
+    // Sort paths to ensure parents come before children
+    folderPaths.sort();
+    
+    for (const path of folderPaths) {
+      const parts = path.split('/');
+      let currentLevel = root;
+      let currentPath = '';
+      
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        
+        if (!currentLevel[part]) {
+          currentLevel[part] = {
+            name: part,
+            path: currentPath,
+            children: [],
+            isExpanded: false,
+            isFolder: true,
+          };
+        }
+        
+        if (i < parts.length - 1) {
+          // Create children object if it doesn't exist
+          if (!currentLevel[part]._childrenMap) {
+            currentLevel[part]._childrenMap = {};
+          }
+          currentLevel = currentLevel[part]._childrenMap!;
+        }
+      }
+    }
+    
+    // Convert the tree structure to array format
+    const convertToArray = (level: { [key: string]: TreeNode }): FolderTreeNode[] => {
+      return Object.values(level).map(node => {
+        if (node._childrenMap) {
+          node.children = convertToArray(node._childrenMap);
+          delete node._childrenMap;
+        }
+        return node;
+      }).sort((a, b) => a.name.localeCompare(b.name));
+    };
+    
+    return convertToArray(root);
+  };
+
+  // Load all folders at once for better drag-and-drop experience
+  const loadAllFolders = useCallback(async () => {
+    try {
+      const response = await fetch('/api/r2/all-folders');
+      const data = await response.json();
+      
+      if (response.ok && data.folders) {
+        const tree = buildTreeFromFlatList(data.folders);
+        setFolderTree(tree);
+        setAllFoldersLoaded(true);
+        
+        // Auto-expand all folders in the current path
+        if (currentPath) {
+          const pathParts = currentPath.split('/').filter(Boolean);
+          const pathsToExpand = new Set<string>();
+          
+          let buildPath = '';
+          for (const part of pathParts) {
+            buildPath = buildPath ? `${buildPath}/${part}` : part;
+            pathsToExpand.add(buildPath);
+          }
+          
+          setExpandedFolders(pathsToExpand);
+        }
+      } else {
+        toast.error('Failed to load folders');
+      }
+    } catch (error) {
+      console.error('Error loading all folders:', error);
+      toast.error('Error loading folders');
+    }
+  }, [currentPath]);
 
   const loadFolderTree = useCallback(async (prefix: string = '') => {
     try {
@@ -138,6 +226,11 @@ export function FolderSidebar({ currentPath, onNavigate, className = '' }: Folde
     const loadInitialTree = async () => {
       setLoading(true);
       try {
+        // Try to load all folders at once for better drag-and-drop support
+        await loadAllFolders();
+      } catch (error) {
+        // Fallback to lazy loading if all-folders endpoint fails
+        console.error('Failed to load all folders, falling back to lazy loading:', error);
         await loadFolderTree('');
       } finally {
         setLoading(false);
@@ -145,7 +238,7 @@ export function FolderSidebar({ currentPath, onNavigate, className = '' }: Folde
     };
     
     loadInitialTree();
-  }, [loadFolderTree]);
+  }, [loadAllFolders, loadFolderTree]);
 
   // Auto-expand folders in current path
   useEffect(() => {
@@ -176,12 +269,14 @@ export function FolderSidebar({ currentPath, onNavigate, className = '' }: Folde
         next.delete(path);
         return next;
       } else {
-        // Load children when expanding
-        loadFolderTree(folderPath);
+        // Only load children if not all folders are loaded
+        if (!allFoldersLoaded) {
+          loadFolderTree(folderPath);
+        }
         return new Set([...prev, path]);
       }
     });
-  }, [loadFolderTree]);
+  }, [loadFolderTree, allFoldersLoaded]);
 
   const handleRootClick = () => {
     onNavigate('');

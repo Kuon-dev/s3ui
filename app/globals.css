@@ -461,4 +461,29 @@
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Drag and drop cursor states */
+  .dragging * {
+    cursor: grabbing !important;
+  }
+
+  /* Disable text selection during drag */
+  .dragging {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Smooth drag animations */
+  .drag-preview {
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  /* Drop zone hover effect */
+  .drop-zone-active {
+    position: relative;
+    z-index: 10;
+  }
 }

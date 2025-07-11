@@ -1,17 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Folder, 
-  Download, 
-  Eye, 
-  Clock,
-  Star,
-  Upload,
-  FolderPlus,
-  Sparkles,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Search, Folder, Clock, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   CommandDialog,
   CommandEmpty,
@@ -19,381 +9,373 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
-  CommandShortcut,
 } from '@/components/ui/command';
-import { Button } from '@/components/ui/button';
-import { getFileIcon, getFileType, FileCategory } from '@/lib/utils/file-types';
-import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
-import { cn } from '@/lib/utils';
+import { getFileIcon, getFileType } from '@/lib/utils/file-types';
+import { toast } from 'sonner';
 
-/**
- * Represents a search result from the R2 global search.
- * 
- * @internal
- */
-interface SearchResult {
-  /** Full R2 object key/path */
-  key: string;
-  /** Display name (filename or folder name) */
-  name: string;
-  /** Parent folder path */
-  path: string;
-  /** File size in bytes (0 for folders) */
-  size: number;
-  /** ISO string of last modification date */
-  lastModified: string;
-  /** Whether this result is a folder */
-  isFolder: boolean;
-}
-
-/**
- * Props for the GlobalSearch component.
- * 
- * @public
- */
 interface GlobalSearchProps {
-  /** Whether the search modal is currently open */
   isOpen: boolean;
-  /** Callback to close the search modal */
   onClose: () => void;
-  /** Callback to navigate to a specific path */
-  onNavigate: (path: string) => void;
+  onNavigate: (path: string) => Promise<void>;
 }
 
-/**
- * GlobalSearch component provides a command palette interface for searching across
- * all files and folders in the R2 bucket. Features real-time search with debouncing,
- * file actions (preview, download), and keyboard navigation.
- * 
- * @param props - The component props
- * @returns JSX element for the global search modal
- * 
- * @example
- * ```tsx
- * <GlobalSearch
- *   isOpen={showSearch}
- *   onClose={() => setShowSearch(false)}
- *   onNavigate={(path) => navigateToPath(path)}
- * />
- * ```
- * 
- * @public
- */
+interface SearchResult {
+  key: string;
+  name: string;
+  path: string;
+  size: number;
+  lastModified: string;
+  isFolder: boolean;
+  matchType: 'name' | 'path';
+  score: number;
+}
+
 export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  
-  const {
-    setShowUploadDialog,
-    setShowCreateFolderDialog,
-    setSelectedObject,
-    setShowPreviewDialog,
-  } = useFileBrowserStore();
-  
+  const [loading, setLoading] = useState(false);
+  const [apiResults, setApiResults] = useState<SearchResult[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Load recent searches from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('r2-recent-searches');
-    if (saved) {
-      setRecentSearches(JSON.parse(saved));
+    const stored = localStorage.getItem('recentSearches');
+    if (stored) {
+      setRecentSearches(JSON.parse(stored));
     }
   }, []);
 
-  const searchFiles = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setResults([]);
+  // Search function using API endpoint
+  const searchFiles = useCallback(async (query: string, controller: AbortController) => {
+    if (!query.trim()) {
+      setApiResults([]);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/r2/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`/api/r2/search?q=${encodeURIComponent(query)}`, {
+        signal: controller.signal
+      });
       const data = await response.json();
       
       if (response.ok) {
-        setResults(data.results || []);
+        // Convert API results to SearchResult format with scoring
+        const results: SearchResult[] = data.results.map((result: {
+          key: string;
+          name: string;
+          path: string;
+          size: number;
+          lastModified: string;
+          isFolder: boolean;
+        }) => {
+          const name = result.name;
+          const nameLower = name.toLowerCase();
+          const queryLower = query.toLowerCase();
+          
+          let score = 0;
+          let matchType: 'name' | 'path' = 'name';
+          
+          // Exact name match
+          if (nameLower === queryLower) {
+            score = 100;
+          }
+          // Name starts with query
+          else if (nameLower.startsWith(queryLower)) {
+            score = 80;
+          }
+          // Name contains query
+          else if (nameLower.includes(queryLower)) {
+            score = 60;
+          }
+          // Path contains query
+          else if (result.path.toLowerCase().includes(queryLower)) {
+            score = 40;
+            matchType = 'path';
+          }
+          else {
+            score = 20;
+          }
+          
+          // Boost folders slightly
+          if (result.isFolder) score += 5;
+          
+          return {
+            key: result.key,
+            name: result.name,
+            path: result.path,
+            size: result.size,
+            lastModified: result.lastModified,
+            isFolder: result.isFolder,
+            matchType,
+            score,
+          };
+        }).sort((a: SearchResult, b: SearchResult) => b.score - a.score);
         
-        // Save to recent searches
-        if (searchQuery.trim() && data.results?.length > 0) {
-          const newRecentSearches = [searchQuery, ...recentSearches.filter(s => s !== searchQuery)].slice(0, 5);
-          setRecentSearches(newRecentSearches);
-          localStorage.setItem('r2-recent-searches', JSON.stringify(newRecentSearches));
+        setApiResults(results);
+        console.log('Search results:', results); // Debug log
+        
+        // Save to recent searches if we have results - use functional update to avoid dependency
+        if (results.length > 0) {
+          setRecentSearches(prev => {
+            const newRecent = [query, ...prev.filter(s => s !== query)].slice(0, 5);
+            localStorage.setItem('recentSearches', JSON.stringify(newRecent));
+            return newRecent;
+          });
         }
       } else {
         toast.error('Failed to search files');
-        setResults([]);
+        setApiResults([]);
       }
-    } catch {
-      toast.error('Error searching files');
-      setResults([]);
+    } catch (error) {
+      // Only show error if it's not an abort error
+      if (error instanceof Error && error.name !== 'AbortError') {
+        toast.error('Error searching files');
+      }
+      setApiResults([]);
     } finally {
       setLoading(false);
     }
-  }, [recentSearches]);
+  }, []); // No dependencies needed now
 
+  // Debounced search effect with request cancellation
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      searchFiles(query);
-    }, 300); // Debounce search
-
-    return () => clearTimeout(timeoutId);
-  }, [query, searchFiles]);
-
-  const handleSelect = (result: SearchResult) => {
-    if (result.isFolder) {
-      onNavigate(result.key.replace(/\/$/, ''));
-    } else {
-      // Open preview dialog for files
-      const fileObject = {
-        key: result.key,
-        size: result.size,
-        lastModified: new Date(result.lastModified),
-        isFolder: false
-      };
-      setSelectedObject(fileObject);
-      setShowPreviewDialog(true);
-      // Navigate to the folder containing the file
-      onNavigate(result.path);
-    }
-    onClose();
-  };
-
-  const handleDownload = async (result: SearchResult) => {
-    if (result.isFolder) return;
-    
-    try {
-      const response = await fetch(`/api/r2/download?key=${encodeURIComponent(result.key)}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = result.name;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success('File downloaded successfully');
-      } else {
-        toast.error('Failed to download file');
+      // Cancel previous request if it exists
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-    } catch {
-      toast.error('Error downloading file');
-    }
-  };
+      
+      // Create new abort controller for this request
+      const newController = new AbortController();
+      abortControllerRef.current = newController;
+      
+      searchFiles(searchQuery, newController);
+    }, 300);
 
-  const handlePreview = (result: SearchResult) => {
-    if (result.isFolder) return;
-    
-    const fileObject = {
-      key: result.key,
-      size: result.size,
-      lastModified: new Date(result.lastModified),
-      isFolder: false
+    return () => {
+      clearTimeout(timeoutId);
+      // Cancel any pending request when component unmounts or searchQuery changes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
-    setSelectedObject(fileObject);
-    setShowPreviewDialog(true);
+  }, [searchQuery, searchFiles]);
+
+  // Use API results instead of local search
+  const searchResults = useMemo(() => {
+    return apiResults.slice(0, 20); // Limit to 20 results for UI performance
+  }, [apiResults]);
+
+  // Group results by type
+  const groupedResults = useMemo(() => {
+    const folders = searchResults.filter(r => r.isFolder);
+    const files = searchResults.filter(r => !r.isFolder);
+    
+    // Further group files by type
+    const filesByType = files.reduce((acc, file) => {
+      const type = getFileType(file.key).category;
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(file);
+      return acc;
+    }, {} as Record<string, SearchResult[]>);
+    
+    console.log('Grouped results:', { folders, filesByType }); // Debug log
+    return { folders, filesByType };
+  }, [searchResults]);
+
+  const handleSelect = useCallback(async (result: SearchResult) => {
+    // Navigate to the folder containing the item
+    if (result.isFolder) {
+      await onNavigate(result.key);
+    } else {
+      await onNavigate(result.path);
+    }
+    
     onClose();
-  };
-  
-  const handleQuickAction = (action: string) => {
-    onClose();
-    switch(action) {
-      case 'upload':
-        setShowUploadDialog(true);
+    setSearchQuery('');
+  }, [onNavigate, onClose]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const totalResults = searchResults.length;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % totalResults);
         break;
-      case 'new-folder':
-        setShowCreateFolderDialog(true);
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + totalResults) % totalResults);
         break;
-      case 'recent':
-        if (recentSearches.length > 0) {
-          setQuery(recentSearches[0]);
+      case 'Enter':
+        e.preventDefault();
+        if (searchResults[selectedIndex]) {
+          handleSelect(searchResults[selectedIndex]);
         }
         break;
     }
+  }, [searchResults, selectedIndex, handleSelect]);
+
+  // Reset selected index when search changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
+
+  // Cleanup abort controller when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const highlightMatch = (text: string, query: string) => {
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-primary/30 text-primary-foreground font-medium">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  // Group results by type
-  const groupedResults = results.reduce((acc, result) => {
-    const fileType = result.isFolder ? 'folder' : getFileType(result.name).category;
-    if (!acc[fileType]) acc[fileType] = [];
-    acc[fileType].push(result);
-    return acc;
-  }, {} as Record<string, SearchResult[]>);
 
   return (
-    <CommandDialog
-      title="Search everything"
-      description="Search files, folders, and quick actions"
-      open={isOpen}
-      onOpenChange={onClose}
-      showCloseButton={false}
-      className="max-w-2xl"
-    >
+    <CommandDialog open={isOpen} onOpenChange={onClose}>
       <CommandInput
-        placeholder="Type to search..."
-        value={query}
-        onValueChange={setQuery}
+        placeholder="Search files and folders..."
+        value={searchQuery}
+        onValueChange={setSearchQuery}
+        onKeyDown={handleKeyDown}
+        className="h-12 text-base"
       />
-      <CommandList className="max-h-[400px]">
-        <CommandEmpty className="py-8">
-          <div className="text-center space-y-2">
-            <Sparkles className="h-8 w-8 mx-auto text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
-              {loading ? 'Searching...' : 'No results found.'}
-            </p>
-          </div>
-        </CommandEmpty>
-
-        {/* Quick Actions */}
-        {!query && (
-          <>
-            <CommandGroup heading="Quick Actions">
-              <CommandItem
-                onSelect={() => handleQuickAction('upload')}
-                className="gap-3"
-              >
-                <Upload className="h-4 w-4" />
-                <span>Upload Files</span>
-                <CommandShortcut>⌘U</CommandShortcut>
-              </CommandItem>
-              <CommandItem
-                onSelect={() => handleQuickAction('new-folder')}
-                className="gap-3"
-              >
-                <FolderPlus className="h-4 w-4" />
-                <span>Create Folder</span>
-                <CommandShortcut>⌘N</CommandShortcut>
-              </CommandItem>
-            </CommandGroup>
-
-            {/* Recent Searches */}
-            {recentSearches.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Recent Searches">
-                  {recentSearches.map((search, index) => (
-                    <CommandItem
-                      key={search}
-                      value={search}
-                      onSelect={() => setQuery(search)}
-                      className="gap-3"
-                    >
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="flex-1">{search}</span>
-                      {index === 0 && <Star className="h-3 w-3 text-warning" />}
-                    </CommandItem>
-                  ))}
+      
+      <CommandList>
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Searching...</span>
+            </div>
+          ) : searchQuery && searchResults.length === 0 ? (
+            <CommandEmpty>
+              <div className="flex flex-col items-center gap-2 py-6">
+                <Search className="h-8 w-8 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">
+                  No results found for &ldquo;{searchQuery}&rdquo;
+                </p>
+              </div>
+            </CommandEmpty>
+          ) : searchQuery && searchResults.length > 0 ? (
+            <div>
+              {/* Folders */}
+              {groupedResults.folders.length > 0 && (
+                <CommandGroup heading={`Folders (${groupedResults.folders.length})`}>
+                  {groupedResults.folders.map((result) => {
+                    const name = result.key.replace(/\/$/, '').split('/').pop() || 'Home';
+                    const isSelected = searchResults.indexOf(result) === selectedIndex;
+                    
+                    return (
+                      <CommandItem
+                        key={result.key}
+                        value={result.key}
+                        onSelect={() => handleSelect(result)}
+                        className={`flex items-center gap-3 ${isSelected ? 'bg-accent' : ''}`}
+                      >
+                        <Folder className="h-4 w-4 text-primary flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">
+                            {highlightMatch(name, searchQuery)}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {result.path || 'Home'}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
-              </>
-            )}
-          </>
-        )}
-
-        {/* Search Results */}
-        {query && Object.entries(groupedResults).map(([category, items]) => {
-          const categoryName = category === 'folder' ? 'Folders' : 
-                              category === FileCategory.IMAGE ? 'Images' :
-                              category === FileCategory.VIDEO ? 'Videos' :
-                              category === FileCategory.AUDIO ? 'Audio' :
-                              category === FileCategory.CODE ? 'Code' :
-                              category === FileCategory.DOCUMENT ? 'Documents' :
-                              category === FileCategory.ARCHIVE ? 'Archives' : 'Other Files';
-
-          return (
-            <CommandGroup key={category} heading={categoryName}>
-              {items.map((result) => {
-                const fileType = result.isFolder ? null : getFileType(result.name);
-                const FileIcon = result.isFolder ? Folder : getFileIcon(result.name, false);
+              )}
+              
+              {/* Files by type */}
+              {Object.entries(groupedResults.filesByType).map(([type, files]) => {
+                const typeLabel = type.charAt(0).toUpperCase() + type.slice(1) + 's';
                 
                 return (
-                  <CommandItem
-                    key={result.key}
-                    value={result.key}
-                    onSelect={() => handleSelect(result)}
-                    className="group gap-3"
-                  >
-                    <FileIcon className={cn(
-                      "h-4 w-4 flex-shrink-0",
-                      result.isFolder ? "text-primary" : fileType?.iconColor || "text-muted-foreground"
-                    )} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{result.name}</span>
-                        {!result.isFolder && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatFileSize(result.size)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {result.path || 'Root'}
-                      </div>
-                    </div>
-                    {!result.isFolder && (
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePreview(result);
-                          }}
+                  <CommandGroup key={type} heading={`${typeLabel} (${files.length})`}>
+                    {files.map((result) => {
+                      const name = result.key.split('/').pop() || result.key;
+                      const Icon = getFileIcon(name, false);
+                      const isSelected = searchResults.indexOf(result) === selectedIndex;
+                      
+                      return (
+                        <CommandItem
+                          key={result.key}
+                          value={result.key}
+                          onSelect={() => handleSelect(result)}
+                          className={`flex items-center gap-3 ${isSelected ? 'bg-accent' : ''}`}
                         >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(result);
-                          }}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </CommandItem>
+                          <Icon className={`h-4 w-4 file-type-${type} flex-shrink-0`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium">
+                              {highlightMatch(name, searchQuery)}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {result.path || 'Home'}
+                            </div>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
                 );
               })}
+            </div>
+          ) : !searchQuery && recentSearches.length > 0 ? (
+            <CommandGroup heading="Recent searches">
+              {recentSearches.map((search) => (
+                <CommandItem
+                  key={search}
+                  onSelect={() => setSearchQuery(search)}
+                  className="flex items-center gap-2"
+                >
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>{search}</span>
+                </CommandItem>
+              ))}
             </CommandGroup>
-          );
-        })}
+          ) : null}
       </CommandList>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between border-t border-border px-3 py-2">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      
+      <div className="flex items-center justify-between p-4 border-t text-xs text-muted-foreground">
+        <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted rounded">↑↓</kbd>
+            <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">↑↓</kbd>
             Navigate
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted rounded">↵</kbd>
-            Select
+            <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">↵</kbd>
+            Open
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted rounded">esc</kbd>
+            <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">Esc</kbd>
             Close
           </span>
         </div>
-        {query && results.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {results.length} result{results.length !== 1 ? 's' : ''}
-          </span>
+        {searchResults.length > 0 && (
+          <span>{searchResults.length} results</span>
         )}
       </div>
     </CommandDialog>

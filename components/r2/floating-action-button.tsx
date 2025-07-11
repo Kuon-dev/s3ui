@@ -5,7 +5,7 @@ import { Upload, FolderPlus, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
 import { springPresets } from '@/lib/animations';
-import { EnhancedTooltip } from '@/components/ui/tooltip-enhanced';
+import { TooltipWrapper as Tooltip } from '@/components/ui/tooltip-wrapper';
 
 interface FloatingActionButtonProps {
   onUpload: () => void;
@@ -68,7 +68,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
                   }}
                   className="absolute bottom-0 right-0"
                 >
-                  <EnhancedTooltip content={action.label} side="left">
+                  <Tooltip content={action.label} side="left">
                     <Button
                       size="lg"
                       className={`
@@ -81,7 +81,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
                     >
                       <action.icon className="h-5 w-5" />
                     </Button>
-                  </EnhancedTooltip>
+                  </Tooltip>
                 </motion.div>
               ))}
             </div>
@@ -94,7 +94,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
         animate={{ rotate: isExpanded ? 45 : 0 }}
         transition={springPresets.snappy}
       >
-        <EnhancedTooltip 
+        <Tooltip 
           content={isExpanded ? "Close" : "Quick actions"} 
           side="left"
         >
@@ -117,7 +117,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
               {isExpanded ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
             </motion.div>
           </Button>
-        </EnhancedTooltip>
+        </Tooltip>
       </motion.div>
     </div>
   );

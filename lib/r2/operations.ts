@@ -173,7 +173,9 @@ export async function renameObject(oldKey: string, newKey: string): Promise<void
     // Rename folder - need to copy all contents recursively
     const objects = await listObjectsRecursive(oldKey);
     for (const obj of objects) {
-      const newObjKey = obj.key.replace(oldKey, newKey);
+      // Use substring to safely replace the prefix without regex issues
+      const relativePath = obj.key.substring(oldKey.length);
+      const newObjKey = newKey + relativePath;
       await copyObject(obj.key, newObjKey);
       await deleteObject(obj.key);
     }
@@ -195,9 +197,11 @@ export async function renameObject(oldKey: string, newKey: string): Promise<void
  * @internal
  */
 async function copyObject(sourceKey: string, targetKey: string): Promise<void> {
+  // URL encode the source key to handle special characters and spaces
+  const encodedSourceKey = encodeURIComponent(sourceKey);
   const command = new CopyObjectCommand({
     Bucket: R2_BUCKET_NAME,
-    CopySource: `${R2_BUCKET_NAME}/${sourceKey}`,
+    CopySource: `${R2_BUCKET_NAME}/${encodedSourceKey}`,
     Key: targetKey,
   });
 
@@ -306,19 +310,20 @@ export interface FolderTreeNode {
 }
 
 /**
- * Builds a folder tree structure for a given prefix, including both folders and files.
+ * Builds a folder tree structure for a given prefix, returning only folders (not files).
+ * This is used for the sidebar navigation tree. Files are displayed separately in the main content area.
  * Returns immediate children only (not recursive) for efficient lazy loading.
  * 
  * @param prefix - The folder prefix to get the tree for (defaults to root)
- * @returns Promise that resolves to an array of FolderTreeNode objects
+ * @returns Promise that resolves to an array of FolderTreeNode objects representing folders only
  * 
  * @example
  * ```typescript
- * // Get root level folders and files
- * const rootTree = await getFolderTree();
+ * // Get root level folders
+ * const rootFolders = await getFolderTree();
  * 
- * // Get contents of a specific folder
- * const documentsTree = await getFolderTree('documents/');
+ * // Get subfolders of a specific folder
+ * const documentFolders = await getFolderTree('documents/');
  * ```
  * 
  * @public
@@ -354,34 +359,12 @@ export async function getFolderTree(prefix: string = ''): Promise<FolderTreeNode
     }
   }
 
-  // Add files (Contents)
-  if (response.Contents) {
-    for (const object of response.Contents) {
-      if (object.Key && object.Key !== prefix) {
-        const fileName = object.Key.replace(prefix, '');
-        
-        // Skip if this is a folder marker (empty object ending with /)
-        if (fileName && !fileName.endsWith('/')) {
-          items.push({
-            name: fileName,
-            path: object.Key,
-            children: [],
-            isExpanded: false,
-            isFolder: false,
-            size: object.Size || 0,
-            lastModified: object.LastModified || new Date(),
-          });
-        }
-      }
-    }
-  }
+  // Note: We don't add files to the folder tree
+  // The folder tree should only contain folders for the sidebar navigation
+  // Files are shown in the main content area when a folder is selected
 
-  // Sort: folders first, then files, both alphabetically
-  return items.sort((a, b) => {
-    if (a.isFolder && !b.isFolder) return -1;
-    if (!a.isFolder && b.isFolder) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  // Sort folders alphabetically
+  return items.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     // Handle NoSuchKey error (bucket doesn't exist or is empty)
     if (error && typeof error === 'object') {
@@ -439,6 +422,7 @@ export async function getAllFolders(): Promise<FolderTreeNode> {
   };
 }
 
+
 /**
  * Copies an object or folder from one location to another within R2 storage.
  * For folders, recursively copies all contained objects.
@@ -490,3 +474,4 @@ export async function copyObjectOrFolder(
     await copyObject(sourcePath, destinationPath);
   }
 }
+

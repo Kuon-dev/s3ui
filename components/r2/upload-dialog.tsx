@@ -1,18 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Upload, 
   X, 
   AlertCircle,
-  FileIcon,
   CheckCircle2,
   Loader2,
-  FolderOpen,
-  HardDrive,
   Clock,
-  AlertTriangle,
-  Sparkles,
   FileUp,
   Cloud,
 } from 'lucide-react';
@@ -29,6 +24,8 @@ import { uploadManager, UploadProgress } from '@/lib/service-worker/upload-manag
 import { validateFiles, formatFileSize, MAX_FILE_SIZE, MAX_FILES_PER_UPLOAD } from '@/lib/utils/file-utils';
 import { getFileIcon, getFileType } from '@/lib/utils/file-types';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+import { springPresets } from '@/lib/animations';
 
 interface UploadDialogProps {
   isOpen: boolean;
@@ -106,116 +103,108 @@ export function UploadDialog({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    
     const files = Array.from(e.dataTransfer.files);
     validateAndSetFiles(files);
   };
 
   const removeFile = (id: string) => {
-    setSelectedFiles(files => files.filter(f => f.id !== id));
+    setSelectedFiles(prev => prev.filter(f => f.id !== id));
+    setValidationErrors([]);
   };
 
-  // Calculate total progress
-  useEffect(() => {
-    if (selectedFiles.length === 0) {
-      setTotalProgress(0);
-      return;
+  const clearFiles = () => {
+    setSelectedFiles([]);
+    setValidationErrors([]);
+    setTotalProgress(0);
+    uploadedCount.current = 0;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-    
-    const total = selectedFiles.reduce((acc, file) => {
-      if (file.status === 'completed') return acc + 100;
-      if (file.status === 'uploading') return acc + file.progress;
-      return acc;
-    }, 0);
-    
-    const newTotalProgress = Math.round(total / selectedFiles.length);
-    console.log('UploadDialog: Calculating total progress:', {
-      selectedFiles: selectedFiles.map(f => ({ id: f.id, progress: f.progress, status: f.status })),
-      total,
-      length: selectedFiles.length,
-      newTotalProgress
-    });
-    setTotalProgress(newTotalProgress);
-  }, [selectedFiles]);
+  };
 
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
-
+    
     setUploading(true);
-    uploadedCount.current = 0;
+    const progressMap = new Map<string, number>();
     
     try {
-      const pendingFiles = selectedFiles.filter(f => f.status === 'pending');
-      
-      const uploadPromises = pendingFiles.map(async (fileWrapper) => {
-        // Update status to uploading
-        setSelectedFiles(prev => prev.map(f => 
-          f.id === fileWrapper.id ? { ...f, status: 'uploading' as const } : f
-        ));
+      for (const fileItem of selectedFiles) {
+        if (fileItem.status === 'completed') continue;
         
-        try {
-          console.log(`Starting upload for file: ${fileWrapper.file.name}, path: ${currentPath}`);
-          await uploadManager.uploadFile(fileWrapper.file, currentPath, (progress: UploadProgress) => {
-            console.log('UploadDialog: Received progress update:', progress);
-            setSelectedFiles(prev => {
-              const updated = prev.map(f => 
-                f.id === fileWrapper.id 
-                  ? { ...f, progress: progress.progress } 
-                  : f
-              );
-              console.log('UploadDialog: Updated selectedFiles:', updated.find(f => f.id === fileWrapper.id));
-              return updated;
-            });
-          });
-          
-          // Update status to completed
-          setSelectedFiles(prev => prev.map(f => 
-            f.id === fileWrapper.id ? { ...f, status: 'completed' as const, progress: 100 } : f
-          ));
-          uploadedCount.current++;
-          console.log(`Upload completed for file: ${fileWrapper.file.name}`);
-        } catch (error) {
-          console.error(`Upload failed for file: ${fileWrapper.file.name}`, error);
-          // Update status to failed
-          setSelectedFiles(prev => prev.map(f => 
-            f.id === fileWrapper.id 
-              ? { ...f, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' } 
+        setSelectedFiles(prev => 
+          prev.map(f => 
+            f.id === fileItem.id 
+              ? { ...f, status: 'uploading' as const, progress: 0 }
               : f
-          ));
-        }
-      });
+          )
+        );
 
-      await Promise.all(uploadPromises);
+        try {
+
+          await uploadManager.uploadFile(
+            fileItem.file,
+            currentPath,
+            (progress: UploadProgress) => {
+              progressMap.set(fileItem.id, progress.progress);
+              
+              setSelectedFiles(prev => 
+                prev.map(f => 
+                  f.id === fileItem.id 
+                    ? { ...f, progress: progress.progress }
+                    : f
+                )
+              );
+              
+              // Calculate total progress
+              let total = 0;
+              let count = 0;
+              selectedFiles.forEach(f => {
+                if (f.status === 'completed') {
+                  total += 100;
+                } else if (f.id === fileItem.id) {
+                  total += progress.progress;
+                } else {
+                  total += progressMap.get(f.id) || 0;
+                }
+                count++;
+              });
+              setTotalProgress(Math.round(total / count));
+            }
+          );
+
+          setSelectedFiles(prev => 
+            prev.map(f => 
+              f.id === fileItem.id 
+                ? { ...f, status: 'completed' as const, progress: 100 }
+                : f
+            )
+          );
+          
+          uploadedCount.current++;
+        } catch (error) {
+          setSelectedFiles(prev => 
+            prev.map(f => 
+              f.id === fileItem.id 
+                ? { 
+                    ...f, 
+                    status: 'failed' as const, 
+                    error: error instanceof Error ? error.message : 'Upload failed' 
+                  }
+                : f
+            )
+          );
+          toast.error(`Failed to upload ${fileItem.file.name}`);
+        }
+      }
       
       if (uploadedCount.current > 0) {
-        toast.success(`Successfully uploaded ${uploadedCount.current} file(s)`);
+        toast.success(`Successfully uploaded ${uploadedCount.current} file${uploadedCount.current > 1 ? 's' : ''}`);
         onUploadComplete();
-        
-        // Auto close if all succeeded
-        if (uploadedCount.current === pendingFiles.length) {
-          // Set uploading to false before closing
-          setUploading(false);
-          setTimeout(() => {
-            handleClose();
-          }, 1000);
-        } else {
-          setUploading(false);
-        }
-      } else {
-        setUploading(false);
       }
-    } catch {
-      toast.error('Upload process failed');
+    } finally {
       setUploading(false);
-    }
-  };
-
-  const handleClose = () => {
-    if (!uploading) {
-      setSelectedFiles([]);
-      setValidationErrors([]);
-      setTotalProgress(0);
-      uploadedCount.current = 0;
-      onClose();
     }
   };
 
@@ -224,254 +213,271 @@ export function UploadDialog({
       case 'pending':
         return <Clock className="h-4 w-4 text-muted-foreground" />;
       case 'uploading':
-        return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
+        return (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          >
+            <Loader2 className="h-4 w-4 text-primary" />
+          </motion.div>
+        );
       case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-success" />;
+        return (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={springPresets.bouncy}
+          >
+            <CheckCircle2 className="h-4 w-4 text-success" />
+          </motion.div>
+        );
       case 'failed':
         return <AlertCircle className="h-4 w-4 text-destructive" />;
     }
   };
 
-  const totalSize = selectedFiles.reduce((acc, fileWrapper) => acc + fileWrapper.file.size, 0);
-  const canUpload = selectedFiles.some(f => f.status === 'pending') && !uploading;
+  const canUpload = selectedFiles.length > 0 && !uploading;
+  const allCompleted = selectedFiles.length > 0 && selectedFiles.every(f => f.status === 'completed');
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0 glass-subtle bg-background/95 backdrop-blur-xl border-border">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            <Cloud className="h-5 w-5 text-primary" />
-            Upload Files
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-8rem)]">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={springPresets.smooth}
+          className="p-grid-6 pb-0"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              <Cloud className="h-5 w-5 text-primary" />
+              Upload Files
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {currentPath ? `Uploading to: /${currentPath}` : 'Uploading to: Home'}
+            </p>
+          </DialogHeader>
+        </motion.div>
+
+        <div className="flex-1 overflow-y-auto p-grid-6">
           {/* Drop Zone */}
-          <div
+          <motion.div
+            animate={{
+              scale: isDragging ? 1.02 : 1,
+              borderColor: isDragging ? 'var(--primary)' : 'var(--border)',
+            }}
+            transition={springPresets.gentle}
             className={cn(
-              "relative border-2 border-dashed rounded-xl transition-all duration-200 overflow-hidden",
-              isDragging 
-                ? "border-primary bg-primary/10 scale-[1.02]" 
-                : "border-border bg-muted/50 hover:border-border hover:bg-muted",
-              "cursor-pointer"
+              "border-2 border-dashed rounded-lg p-grid-8 text-center transition-all",
+              "hover:border-primary/50 hover:bg-accent/5",
+              isDragging && "bg-primary/5 border-primary"
             )}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
           >
-            <div className="p-8 text-center">
-              <div className={cn(
-                "inline-flex p-4 rounded-2xl mb-4 transition-all duration-200",
-                isDragging ? "bg-primary/20 scale-110" : "bg-muted"
-              )}>
-                {isDragging ? (
-                  <Sparkles className="h-8 w-8 text-primary" />
-                ) : (
-                  <FileUp className="h-8 w-8 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-base font-medium mb-1">
-                {isDragging ? 'Drop files here' : 'Drag and drop files here'}
-              </p>
-              <p className="text-sm text-muted-foreground mb-4">
-                or click to browse
-              </p>
-              <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                <span>Max {MAX_FILES_PER_UPLOAD} files</span>
-                <span>•</span>
-                <span>Max {formatFileSize(MAX_FILE_SIZE)} per file</span>
-              </div>
-            </div>
             <input
               ref={fileInputRef}
               type="file"
               multiple
               onChange={handleFileSelect}
               className="hidden"
-              accept="*/*"
+              id="file-upload"
             />
-          </div>
-
-          {/* Validation Errors */}
-          {validationErrors.length > 0 && (
-            <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-destructive">Cannot upload these files</p>
-                  <ul className="text-sm text-destructive/80 space-y-1">
-                    {validationErrors.slice(0, 3).map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
-                    {validationErrors.length > 3 && (
-                      <li className="text-destructive">...and {validationErrors.length - 3} more errors</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Upload Progress */}
-          {uploading && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Overall Progress</span>
-                <span className="font-medium">{totalProgress}%</span>
-              </div>
-              <Progress value={totalProgress} className="h-2" />
-            </div>
-          )}
-
-          {/* Selected Files */}
-          {selectedFiles.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <FileIcon className="h-4 w-4" />
-                  Files ({selectedFiles.length})
-                </h4>
-                <span className="text-xs text-muted-foreground">
-                  Total: {formatFileSize(totalSize)}
-                </span>
+            
+            <motion.div
+              animate={{ y: isDragging ? -5 : 0 }}
+              transition={springPresets.gentle}
+              className="flex flex-col items-center gap-grid-3"
+            >
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <FileUp className="h-8 w-8 text-primary" />
               </div>
               
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                {selectedFiles.map((fileWrapper) => {
-                  // Ensure file has a name before calling getFileType
-                  if (!fileWrapper.file || !fileWrapper.file.name) {
-                    console.error('File missing name:', fileWrapper);
-                    return null;
-                  }
-                  const fileType = getFileType(fileWrapper.file.name);
-                  const FileIcon = getFileIcon(fileWrapper.file.name, false);
-                  
-                  return (
-                    <div
-                      key={fileWrapper.id}
-                      className={cn(
-                        "group relative rounded-lg transition-all duration-200",
-                        "glass-subtle border border-border",
-                        fileWrapper.status === 'failed' && "border-destructive/50 bg-destructive/5"
-                      )}
+              <div className="space-y-grid-2">
+                <h3 className="font-medium text-lg">
+                  {isDragging ? 'Drop files here' : 'Drag & drop files here'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  or{' '}
+                  <label htmlFor="file-upload" className="text-primary hover:underline cursor-pointer">
+                    browse from your computer
+                  </label>
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-grid-4 text-xs text-muted-foreground">
+                <span>Max {MAX_FILES_PER_UPLOAD} files</span>
+                <span>•</span>
+                <span>{formatFileSize(MAX_FILE_SIZE)} per file</span>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Validation Errors */}
+          <AnimatePresence>
+            {validationErrors.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-grid-4 p-grid-3 bg-destructive/10 border border-destructive/20 rounded-lg"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
+                  <div className="space-y-1 text-sm">
+                    {validationErrors.map((error, index) => (
+                      <p key={index}>{error}</p>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Selected Files */}
+          <AnimatePresence>
+            {selectedFiles.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-grid-6 space-y-grid-3"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm">
+                    Selected Files ({selectedFiles.length})
+                  </h4>
+                  {!uploading && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFiles}
+                      className="text-muted-foreground hover:text-foreground"
                     >
-                      <div className="p-3">
-                        <div className="flex items-start gap-3">
-                          <div className={cn(
-                            "rounded-lg p-2 transition-colors",
-                            fileWrapper.status === 'completed' && "bg-success/10",
-                            fileWrapper.status === 'uploading' && "bg-primary/10",
-                            fileWrapper.status === 'failed' && "bg-destructive/10",
-                            fileWrapper.status === 'pending' && "bg-muted/50"
-                          )}>
-                            <FileIcon className={cn(
-                              "h-5 w-5",
-                              fileType.iconColor
-                            )} />
-                          </div>
+                      Clear all
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Total Progress */}
+                {uploading && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-grid-3 bg-primary/5 rounded-lg border border-primary/20"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Total Progress</span>
+                      <span className="text-sm text-muted-foreground">{totalProgress}%</span>
+                    </div>
+                    <Progress value={totalProgress} className="h-2" />
+                  </motion.div>
+                )}
+                
+                <div className="space-y-grid-2 max-h-64 overflow-y-auto">
+                  <AnimatePresence mode="popLayout">
+                    {selectedFiles.map((fileItem, index) => {
+                      const Icon = getFileIcon(fileItem.file.name, false);
+                      const fileType = getFileType(fileItem.file.name);
+                      
+                      return (
+                        <motion.div
+                          key={fileItem.id}
+                          layout
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ delay: index * 0.05, ...springPresets.gentle }}
+                          className={cn(
+                            "flex items-center gap-grid-3 p-grid-3 rounded-lg border",
+                            "transition-all duration-200",
+                            fileItem.status === 'completed' && "bg-success/5 border-success/20",
+                            fileItem.status === 'failed' && "bg-destructive/5 border-destructive/20",
+                            fileItem.status === 'uploading' && "bg-primary/5 border-primary/20",
+                            fileItem.status === 'pending' && "bg-card border-border/50"
+                          )}
+                        >
+                          <Icon className={`h-5 w-5 flex-shrink-0 file-type-${fileType.category}`} />
                           
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate" title={fileWrapper.file.name}>
-                                {fileWrapper.file.name}
-                              </p>
-                              {getStatusIcon(fileWrapper.status)}
-                            </div>
-                            
-                            <div className="flex items-center gap-3 mt-1">
-                              <span className="text-xs text-muted-foreground">
-                                {formatFileSize(fileWrapper.file.size)}
-                              </span>
-                              {fileWrapper.error && (
-                                <span className="text-xs text-destructive/80">
-                                  {fileWrapper.error}
-                                </span>
+                            <p className="text-sm font-medium truncate">
+                              {fileItem.file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(fileItem.file.size)}
+                              {fileItem.error && (
+                                <span className="text-destructive ml-2">{fileItem.error}</span>
                               )}
-                            </div>
-                            
-                            {fileWrapper.status === 'uploading' && (
-                              <div className="mt-2">
-                                <Progress value={fileWrapper.progress} className="h-1" />
-                              </div>
-                            )}
+                            </p>
                           </div>
                           
-                          {fileWrapper.status !== 'uploading' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                              onClick={() => removeFile(fileWrapper.id)}
-                              disabled={uploading}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Current Path */}
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border">
-            <FolderOpen className="h-4 w-4 text-primary" />
-            <span className="text-sm text-muted-foreground">Upload to:</span>
-            <span className="text-sm font-medium">/{currentPath || 'Root'}</span>
-          </div>
+                          <div className="flex items-center gap-grid-2">
+                            {fileItem.status === 'uploading' && (
+                              <div className="w-16">
+                                <Progress value={fileItem.progress} className="h-1.5" />
+                              </div>
+                            )}
+                            
+                            {getStatusIcon(fileItem.status)}
+                            
+                            {!uploading && fileItem.status !== 'completed' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeFile(fileItem.id)}
+                                className="h-7 w-7 p-0 hover:bg-destructive/10"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-4 p-6 pt-0">
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            {selectedFiles.length > 0 && (
-              <>
-                <span className="flex items-center gap-1">
-                  <HardDrive className="h-3 w-3" />
-                  {formatFileSize(totalSize)}
-                </span>
-                {uploading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="p-grid-6 pt-0 mt-auto"
+        >
+          <div className="flex justify-end gap-grid-3">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={uploading}
+            >
+              {allCompleted ? 'Done' : 'Cancel'}
+            </Button>
+            {!allCompleted && (
+              <Button
+                onClick={handleUpload}
+                disabled={!canUpload}
+                className="min-w-[100px] active-scale"
+              >
+                {uploading ? (
                   <>
-                    <span>•</span>
-                    <span>{uploadedCount.current} of {selectedFiles.length} uploaded</span>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload
                   </>
                 )}
-              </>
+              </Button>
             )}
           </div>
-          
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleClose} 
-              disabled={uploading}
-              className="min-w-[80px]"
-            >
-              {uploading ? 'Close' : 'Cancel'}
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={!canUpload}
-              className="min-w-[120px]"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload {selectedFiles.filter(f => f.status === 'pending').length} file(s)
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+        </motion.div>
       </DialogContent>
     </Dialog>
   );

@@ -10,28 +10,41 @@ This documentation provides comprehensive technical information about the Cloudf
 - **[Technical Architecture](./TECHNICAL_ARCHITECTURE.md)** - Comprehensive architecture overview, design patterns, and system components
 - **[API Reference](./API_REFERENCE.md)** - Complete API documentation with endpoints, types, and examples
 - **[Development Guide](./DEVELOPMENT_GUIDE.md)** - Setup instructions, coding standards, and contribution guidelines
+- **[Theme System](./THEME_SYSTEM.md)** - Advanced theming with OKLCH color space and pre-built themes
 
 ### 🏗️ Architecture Highlights
 
 #### Frontend Architecture
-- **Next.js 15** with App Router for modern React development
-- **TypeScript** throughout for type safety and better developer experience
-- **Tailwind CSS + Shadcn UI** for consistent, accessible design system
-- **Service Worker** for background file uploads with progress tracking
+- **Next.js 15** with App Router and Turbopack for fast development
+- **React 19** with TypeScript for type safety and modern features
+- **Tailwind CSS v4** with OKLCH color system for advanced theming
+- **Shadcn UI** component library with glassmorphism effects
+- **Motion (Framer Motion)** for smooth animations
+- **Service Worker v2.0** for enhanced background file uploads
 
 #### Backend Architecture
 - **Next.js API Routes** providing RESTful endpoints
 - **AWS SDK v3** for Cloudflare R2 integration
 - **Comprehensive error handling** with typed error responses
-- **Input validation** and sanitization for security
+- **Input validation** with Unicode normalization
+- **Standalone output** optimization for deployment
+
+#### State Management & Data
+- **Zustand** with persistence middleware for state management
+- **TanStack Query** for advanced data fetching (ready for migration)
+- **60-second object caching** with LRU eviction
+- **Request deduplication** for optimal performance
 
 #### Key Features
-- **Windows Explorer-style Interface** with resizable sidebar and main content
-- **Global Search** with command palette (⌘K) across all files
-- **Real-time File Operations** - upload, download, create, rename, delete
-- **Folder Tree Navigation** with lazy loading for performance
-- **Drag & Drop Support** for intuitive file uploads
-- **Dark Mode Interface** optimized for desktop use
+- **Windows Explorer-style Interface** with dual-pane layout
+- **Advanced Theme System** - 12 pre-built themes with runtime switching
+- **Enhanced Drag & Drop** - Multi-item support with visual feedback
+- **Global Search** with command palette (⌘K/Ctrl+K) and debouncing
+- **Real-time File Operations** - upload, download, create, rename, delete, copy
+- **Folder Tree Navigation** with lazy loading and caching
+- **File Preview Dialog** for various file types
+- **Floating Action Buttons** for mobile-friendly interface
+- **Glassmorphism UI** with modern visual effects
 
 ### 🔧 Technical Improvements
 
@@ -42,11 +55,13 @@ This documentation provides comprehensive technical information about the Cloudf
 - **Error boundaries** for graceful failure handling
 
 #### Performance Optimizations
-- **Intelligent Caching** system with TTL and LRU eviction
-- **Debounced Search** to reduce API calls
+- **Intelligent Caching** system with 60-second TTL and LRU eviction
+- **Debounced Search** (300ms) to reduce API calls
 - **Memoization** utilities for expensive computations
 - **Virtual Scrolling** support for large file lists
 - **Request Deduplication** to prevent duplicate API calls
+- **Service Worker v2.0** with queue management for uploads
+- **Lazy Loading** for folder tree expansion
 
 #### Developer Experience
 - **Extensive Documentation** with examples and best practices
@@ -74,10 +89,11 @@ npm run build
 
 #### Key Commands
 ```bash
-npm run dev          # Development server (port 4713)
-npm run build        # Production build
-npm run lint         # Code linting
+npm run dev          # Development server with Turbopack (port 4713)
+npm run build        # Production build with standalone output
+npm run lint         # Code linting with ESLint
 npm start           # Production server
+docker compose up    # Run with Docker
 ```
 
 #### Environment Variables
@@ -91,46 +107,68 @@ R2_BUCKET_NAME=your_bucket_name
 ### 🎯 Core Components
 
 #### File Browser (`components/r2/file-browser.tsx`)
-Main application interface with dual-pane layout:
-- Resizable folder tree sidebar
-- File listing with search and actions
-- Drag & drop file upload support
+Main application interface with Windows Explorer-style dual-pane layout:
+- Resizable folder tree sidebar with PanelGroup
+- File listing with breadcrumb navigation
+- Enhanced drag & drop with multi-file support
 - Keyboard shortcuts for navigation
+- Integrated utility header with actions
 
-#### Global Search (`components/r2/global-search.tsx`)
-Command palette for searching across all files:
-- Real-time search with debouncing
+#### Global Search (`components/r2/global-search-enhanced.tsx`)
+Advanced command palette with CMDK:
+- Real-time search with 300ms debouncing
 - File preview and download actions
 - Keyboard navigation (⌘K/Ctrl+K)
 - Results limited to 50 items for performance
+- Search history and suggestions
+
+#### File Browser Store (`lib/stores/file-browser-store.ts`)
+Zustand-based state management:
+- Object caching with 60-second timeout
+- Folder tree state with expansion tracking
+- Drag & drop state management
+- Clipboard operations
+- Dialog state management
+
+#### Theme System (`lib/stores/theme-store.ts`)
+Advanced theming with 12 pre-built themes:
+- Vibrant themes: Sunset, Ocean, Forest, Aurora
+- Warm themes: Amber, Rose, Coral
+- Cool themes: Arctic, Twilight, Mint
+- Minimal themes: Mono, Neutral, Gray
+- Runtime theme switching with CSS variables
+- OKLCH color space for perceptually uniform colors
 
 #### R2 Operations (`lib/r2/operations.ts`)
 Core library for R2 storage operations:
 - List objects with prefix filtering
-- Create, delete, and rename operations
-- Folder tree generation
+- Create, delete, copy, and rename operations
+- Folder tree generation with caching
 - Recursive file operations
+- File metadata retrieval
+- Storage statistics
 
-#### API Client (`lib/utils/api-client.ts`)
-Type-safe HTTP client with advanced features:
-- Automatic retry with exponential backoff
-- Request timeout and cancellation
-- Comprehensive error handling
-- Progress tracking for uploads
+#### Service Worker (`public/upload-sw.js`)
+Enhanced upload management:
+- Background file uploads
+- Progress tracking with events
+- Upload queue management
+- Multipart upload support
+- Network resilience
 
 ### 🚀 Performance Features
 
 #### Caching System
-- **Query Cache** - Deduplicates and caches API responses
+- **Object Cache** - 60-second TTL with automatic invalidation
 - **Folder Tree Cache** - Caches folder structures for quick navigation
-- **Metadata Cache** - Stores file metadata to reduce API calls
-- **Stale-While-Revalidate** - Serves cached data while updating in background
+- **Lazy Loading** - Loads folder contents only when expanded
+- **Request Deduplication** - Prevents duplicate API calls
 
 #### Optimization Utilities
 - **Debounce/Throttle** - Rate limiting for user interactions
-- **Memoization** - Caches expensive function results
-- **Batch Processing** - Groups operations to reduce API calls
-- **Performance Monitoring** - Tracks operation durations and memory usage
+- **Virtual Scrolling Ready** - Components prepared for large lists
+- **Service Worker** - Background uploads without blocking UI
+- **Optimistic Updates** - Immediate UI feedback for better UX
 
 ### 🔒 Security Features
 
@@ -146,32 +184,31 @@ Type-safe HTTP client with advanced features:
 - Server-side error logging with request tracking
 - Rate limiting protection
 
-### 📊 Monitoring & Debugging
+### 📊 State Management & Storage
 
-#### Performance Monitoring
+#### Zustand Store Example
 ```typescript
-import { globalPerformanceMonitor } from '@/lib/utils/performance';
+import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 
-// Measure operation performance
-const files = await globalPerformanceMonitor.measure('loadFiles', async () => {
-  return listObjects('documents/');
-});
+// Access store state and actions
+const { objects, loadObjects, isLoading } = useFileBrowserStore();
 
-// Get performance statistics
-const stats = globalPerformanceMonitor.getStats('loadFiles');
-console.log(`Average duration: ${stats.averageDuration}ms`);
+// Load objects with caching
+await loadObjects('documents/');
+
+// Clear cache for specific path
+useFileBrowserStore.getState().clearCache('documents/');
 ```
 
-#### Cache Monitoring
+#### Theme System Usage
 ```typescript
-import { globalQueryCache } from '@/lib/utils/cache';
+import { useThemeStore } from '@/lib/stores/theme-store';
 
-// Get cache statistics
-const stats = globalQueryCache.getStats();
-console.log(`Cache hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
+// Get current theme
+const { theme, setTheme } = useThemeStore();
 
-// Invalidate specific cache entries
-globalQueryCache.invalidate(/^files:/);
+// Switch theme
+setTheme('ocean'); // Available: sunset, ocean, forest, aurora, etc.
 ```
 
 ### 🔄 API Patterns
@@ -185,22 +222,22 @@ interface ApiResponse<T> {
 }
 ```
 
-#### Error Handling
-```typescript
-const result = await apiClient.get<R2Object[]>('/r2/list');
-if (result.success) {
-  console.log('Files:', result.data);
-} else {
-  console.error('Error:', result.error.message);
-}
-```
+#### New API Endpoints
+- `/api/r2/copy` - Copy files and folders
+- `/api/r2/preview` - Generate file previews
+- `/api/r2/stats` - Get storage statistics
 
-#### Type-Safe Operations
+#### Enhanced Operations
 ```typescript
-// All operations are fully typed
-const files: R2Object[] = await listObjects('documents/');
-const metadata = await getFileMetadata('file.pdf');
-await createFolder('new-folder');
+// Copy operations
+await copyObject('source.pdf', 'destination.pdf');
+
+// Get storage stats
+const stats = await getStorageStats();
+console.log(`Total size: ${stats.totalSize}`);
+
+// File preview
+const preview = await getFilePreview('document.pdf');
 ```
 
 ### 🧪 Testing Strategy
@@ -262,10 +299,20 @@ npm run build
 npm start
 ```
 
+#### Docker Deployment
+```bash
+# Using Docker Compose
+docker compose up
+
+# Manual Docker build
+docker build -t s3ui .
+docker run -p 4713:4713 --env-file .env.local s3ui
+```
+
 #### Environment Configuration
 - Set production environment variables
-- Configure error monitoring
-- Set up performance monitoring
+- Configure standalone Next.js output
+- Enable Turbopack for development
 - Configure CDN for static assets
 
 ### 🆘 Troubleshooting
@@ -288,6 +335,14 @@ if (process.env.NODE_ENV === 'development') {
 
 ## Summary
 
-This Cloudflare R2 File Manager represents a modern, type-safe, and performant web application with comprehensive documentation, robust error handling, and advanced optimization features. The architecture prioritizes developer experience, user experience, and maintainability while providing a solid foundation for future enhancements.
+This Cloudflare R2 File Manager represents a modern, type-safe, and performant web application with:
+
+- **Advanced UI/UX** - Windows Explorer-style interface with glassmorphism effects
+- **Modern Tech Stack** - Next.js 15, React 19, Tailwind CSS v4, TypeScript
+- **Sophisticated Theming** - 12 pre-built themes using OKLCH color space
+- **Optimized Performance** - Caching, lazy loading, and service worker uploads
+- **Developer Experience** - Comprehensive documentation, type safety, and Docker support
+
+The architecture prioritizes performance, user experience, and maintainability while providing a solid foundation for future enhancements.
 
 For specific implementation details, please refer to the individual documentation files linked above.

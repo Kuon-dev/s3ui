@@ -21,14 +21,17 @@ This guide provides comprehensive information for developers working on the Clou
 
 ### Required Software
 
-- **Node.js**: Version 18.17 or higher
+- **Node.js**: Version 18.17 or higher (LTS recommended)
 - **npm**: Version 9.0 or higher
 - **Git**: Version 2.30 or higher
+- **Docker**: Optional for containerized deployment
 - **Code Editor**: VS Code recommended with extensions:
   - TypeScript and JavaScript Language Features
   - ESLint
-  - Prettier
+  - Prettier - Code formatter
   - Tailwind CSS IntelliSense
+  - Motion DevTools (for animation debugging)
+  - Zustand DevTools (for state debugging)
 
 ### Development Environment
 
@@ -114,49 +117,58 @@ Visit `http://localhost:4713` to verify the application is running.
 
 ```bash
 # Development
-npm run dev          # Start development server (port 4713)
+npm run dev          # Start development server with Turbopack (port 4713)
 
 # Building
-npm run build        # Build for production
+npm run build        # Build for production with standalone output
 npm start           # Start production server
 
 # Code Quality
-npm run lint        # Run ESLint
-npm run type-check  # Run TypeScript type checking
+npm run lint        # Run ESLint with Next.js rules
 
-# Utilities
-npm run clean       # Clean build artifacts
+# Docker
+docker compose up    # Run with Docker Compose
+docker build -t s3ui . # Build Docker image
+
+# Environment
+cp .env.example .env.local  # Copy environment template
 ```
 
 ## Project Structure
 
 ```
 s3ui/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   │   └── r2/           # R2 storage endpoints
-│   ├── globals.css       # Global styles
-│   ├── layout.tsx        # Root layout
-│   └── page.tsx          # Home page
-├── components/            # React components
-│   ├── r2/               # R2-specific components
-│   ├── ui/               # Reusable UI components
-│   └── magicui/          # Magic UI components
-├── lib/                  # Shared utilities
-│   ├── r2/               # R2 operations
-│   ├── service-worker/   # Upload management
-│   └── utils.ts          # General utilities
+├── app/                     # Next.js App Router
+│   ├── api/                # API routes
+│   │   └── r2/            # R2 storage endpoints (11 routes)
+│   ├── globals.css        # Global styles with Tailwind v4
+│   ├── layout.tsx         # Root layout with providers
+│   └── page.tsx           # Home page with FileBrowser
+├── components/             # React components
+│   ├── r2/                # R2-specific components
+│   │   ├── file-browser.tsx           # Main interface
+│   │   ├── global-search-enhanced.tsx # CMDK search
+│   │   ├── r2-file-tree.tsx          # Folder sidebar
+│   │   ├── upload-dialog-enhanced.tsx # Upload UI
+│   │   └── ...                       # Other components
+│   ├── ui/                # Shadcn UI components (30+)
+│   └── providers/         # React context providers
+├── lib/                   # Core libraries
+│   ├── r2/               # R2 operations & client
+│   ├── stores/           # Zustand state management
+│   │   ├── file-browser-store.ts  # Main store
+│   │   └── theme-store.ts         # Theme store
+│   ├── hooks/            # Custom React hooks
+│   └── utils/            # Utility functions
 ├── public/               # Static assets
+│   └── upload-sw.js     # Service Worker v2.0
 ├── docs/                 # Documentation
 ├── .env.local           # Environment variables
-├── .eslintrc.json       # ESLint configuration
-├── .gitignore           # Git ignore rules
-├── CLAUDE.md            # Claude Code instructions
-├── components.json      # Shadcn UI configuration
-├── next.config.js       # Next.js configuration
-├── package.json         # Dependencies and scripts
-├── tailwind.config.ts   # Tailwind configuration
-└── tsconfig.json        # TypeScript configuration
+├── Dockerfile           # Docker configuration
+├── docker-compose.yml   # Docker Compose setup
+├── next.config.js       # Next.js with standalone
+├── tailwind.config.ts   # Tailwind v4 + OKLCH
+└── tsconfig.json        # TypeScript strict mode
 ```
 
 ### Component Organization
@@ -164,18 +176,25 @@ s3ui/
 ```
 components/
 ├── r2/                   # Domain-specific components
-│   ├── file-browser.tsx  # Main file browser
-│   ├── global-search.tsx # Global search modal
-│   ├── r2-file-tree.tsx  # Folder tree sidebar
-│   ├── upload-dialog.tsx # File upload modal
-│   └── ...               # Other R2 components
-├── ui/                   # Reusable UI components
-│   ├── button.tsx        # Button component
-│   ├── dialog.tsx        # Modal dialog
-│   ├── input.tsx         # Form input
-│   └── ...               # Other UI components
-└── magicui/              # Third-party UI components
-    └── file-tree.tsx     # File tree component
+│   ├── file-browser.tsx  # Main file browser with dual-pane layout
+│   ├── global-search-enhanced.tsx # CMDK command palette
+│   ├── r2-file-tree.tsx  # Folder tree with lazy loading
+│   ├── upload-dialog-enhanced.tsx # Advanced upload UI
+│   ├── utility-header.tsx # Top navigation bar
+│   ├── folder-sidebar.tsx # Folder tree wrapper
+│   ├── empty-state.tsx   # Empty folder UI
+│   ├── draggable-wrapper.tsx # Drag & drop wrapper
+│   ├── drop-zone.tsx     # Drop target component
+│   └── ...               # Dialog components for CRUD
+├── ui/                   # Shadcn UI components (30+)
+│   ├── button.tsx        # Variants: default, destructive, outline, etc.
+│   ├── dialog.tsx        # Modal dialog with animations
+│   ├── command.tsx       # CMDK integration
+│   ├── resizable.tsx     # Panel resizing
+│   ├── tooltip.tsx       # Enhanced tooltips
+│   └── ...               # Full shadcn/ui library
+└── providers/            # React context providers
+    └── theme-provider.tsx # Theme context with persistence
 ```
 
 ## Coding Standards
@@ -275,10 +294,27 @@ components/
      onSelect(id);
    }, [onSelect]);
    
+   // ✅ Good: Using store hooks
+   const { objects, loadObjects } = useFileBrowserStore();
+   
    // ❌ Bad: Missing dependencies
    useEffect(() => {
      fetchData();
    }, []); // Should include dependencies
+   ```
+
+3. **State Management with Zustand**
+   ```typescript
+   // ✅ Good: Selective state subscription
+   const objects = useFileBrowserStore(state => state.objects);
+   
+   // ✅ Good: Multiple selectors
+   const { isLoading, error } = useFileBrowserStore(
+     state => ({ isLoading: state.isLoading, error: state.error })
+   );
+   
+   // ❌ Bad: Subscribing to entire store
+   const store = useFileBrowserStore(); // Re-renders on any change
    ```
 
 ### Error Handling Standards
@@ -321,24 +357,38 @@ components/
 
 ### CSS and Styling Guidelines
 
-1. **Tailwind Usage**
+1. **Tailwind v4 with OKLCH**
    ```typescript
-   // ✅ Good: Semantic class combinations
-   <div className="flex items-center space-x-2 p-4 bg-gray-900 border border-gray-800 rounded-lg">
+   // ✅ Good: Using CSS variables with OKLCH
+   <div className="bg-background text-foreground border-border">
    
-   // ✅ Good: Conditional classes
-   <button className={`px-4 py-2 rounded ${
-     isActive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
-   }`}>
+   // ✅ Good: Theme-aware classes
+   <button className="bg-primary text-primary-foreground hover:bg-primary/90">
    
-   // ❌ Bad: Inline styles for complex styling
-   <div style={{ backgroundColor: '#1a1a1a', padding: '16px' }}>
+   // ✅ Good: Using tw-animate-css
+   <div className="animate-in fade-in-0 zoom-in-95 duration-300">
+   
+   // ❌ Bad: Hard-coded colors
+   <div className="bg-gray-900 text-white">
    ```
 
-2. **Responsive Design**
+2. **Glassmorphism Effects**
    ```typescript
-   // ✅ Good: Mobile-first responsive design
+   // ✅ Good: Modern glassmorphism
+   <div className="backdrop-blur-md bg-background/60 border border-border/50">
+   
+   // ✅ Good: Layered transparency
+   <div className="bg-card/80 backdrop-saturate-150">
+   ```
+
+3. **Responsive Design**
+   ```typescript
+   // ✅ Good: Mobile-first with Tailwind v4
    <div className="w-full md:w-1/2 lg:w-1/3 p-2 md:p-4">
+   
+   // ✅ Good: Container queries (Tailwind v4)
+   <div className="@container">
+     <div className="@lg:grid-cols-2">
    ```
 
 ## Testing Strategy
@@ -398,10 +448,14 @@ describe('FileBrowser', () => {
      return <div>{/* Complex rendering */}</div>;
    });
    
-   // ✅ Good: Stable callbacks
-   const handleClick = useCallback((id: string) => {
-     onClick(id);
-   }, [onClick]);
+   // ✅ Good: Stable callbacks with Zustand
+   const loadObjects = useFileBrowserStore(state => state.loadObjects);
+   const handleRefresh = useCallback(() => {
+     loadObjects(currentPath);
+   }, [currentPath, loadObjects]);
+   
+   // ✅ Good: Selective store subscriptions
+   const objectCount = useFileBrowserStore(state => state.objects.length);
    ```
 
 2. **Lazy Loading**
@@ -433,18 +487,23 @@ describe('FileBrowser', () => {
 
 2. **Caching Strategy**
    ```typescript
-   // ✅ Good: Cache folder tree data
-   const [folderCache, setFolderCache] = useState<Map<string, FolderTreeNode[]>>(new Map());
+   // ✅ Good: Built-in 60-second cache in store
+   const { objects, loadObjects } = useFileBrowserStore();
+   // loadObjects automatically uses cache
    
-   const loadFolderTree = useCallback(async (prefix: string) => {
-     if (folderCache.has(prefix)) {
-       return folderCache.get(prefix);
-     }
-     
-     const tree = await getFolderTree(prefix);
-     setFolderCache(prev => new Map(prev).set(prefix, tree));
-     return tree;
-   }, [folderCache]);
+   // ✅ Good: Manual cache clear when needed
+   const handleForceRefresh = () => {
+     useFileBrowserStore.getState().clearCache(currentPath);
+     loadObjects(currentPath);
+   };
+   
+   // ✅ Good: Optimistic updates
+   const handleDelete = async (key: string) => {
+     // Update UI immediately
+     useFileBrowserStore.getState().removeObject(key);
+     // Then sync with server
+     await deleteObject(key);
+   };
    ```
 
 ## Debugging Tips
@@ -455,6 +514,8 @@ describe('FileBrowser', () => {
 2. **Console**: Check for errors and warnings
 3. **React DevTools**: Inspect component state and props
 4. **Performance Tab**: Profile React renders
+5. **Zustand DevTools**: Debug store state changes
+6. **Motion DevTools**: Debug animations and transitions
 
 ### Common Issues
 
@@ -504,17 +565,18 @@ console.error('Operation failed:', {
 # 1. Install dependencies
 npm install
 
-# 2. Run type checking
-npm run type-check
-
-# 3. Run linting
+# 2. Run linting
 npm run lint
 
-# 4. Build application
+# 3. Build application (standalone output)
 npm run build
 
-# 5. Test production build
+# 4. Test production build
 npm start
+
+# Docker build
+docker build -t s3ui .
+docker run -p 4713:4713 --env-file .env.local s3ui
 ```
 
 ### Environment Variables
@@ -527,14 +589,37 @@ R2_SECRET_ACCESS_KEY=production_secret
 R2_BUCKET_NAME=production_bucket
 ```
 
+### Deployment Options
+
+1. **Docker Deployment**
+   ```yaml
+   # docker-compose.yml
+   services:
+     s3ui:
+       build: .
+       ports:
+         - "4713:4713"
+       env_file:
+         - .env.local
+   ```
+
+2. **Standalone Deployment**
+   ```bash
+   # Build creates standalone output
+   npm run build
+   # Copy .next/standalone and public folders
+   # Run with: node server.js
+   ```
+
 ### Deployment Checklist
 
-- [ ] All tests passing
-- [ ] No TypeScript errors
-- [ ] No ESLint warnings
 - [ ] Environment variables configured
-- [ ] Build succeeds without warnings
+- [ ] ESLint passes without errors
+- [ ] Build succeeds (standalone output)
+- [ ] Service Worker registered
 - [ ] Manual testing of critical paths
+- [ ] Theme system working
+- [ ] File upload/download verified
 
 ## Contributing Guidelines
 
@@ -603,7 +688,7 @@ R2_BUCKET_NAME=production_bucket
    ```bash
    # Clear Next.js cache
    rm -rf .next
-   npm run build
+   npm run dev
    ```
 
 2. **TypeScript Errors**
@@ -616,6 +701,24 @@ R2_BUCKET_NAME=production_bucket
    ```bash
    # Verify .env.local exists and has correct values
    cat .env.local
+   # Ensure all required vars are set:
+   # R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+   ```
+
+4. **Theme Not Applying**
+   ```typescript
+   // Check localStorage for theme persistence
+   localStorage.getItem('theme-storage')
+   // Clear and reset if needed
+   localStorage.removeItem('theme-storage')
+   ```
+
+5. **Service Worker Issues**
+   ```javascript
+   // Unregister and re-register
+   navigator.serviceWorker.getRegistrations().then(regs => {
+     regs.forEach(reg => reg.unregister());
+   });
    ```
 
 ### Performance Issues

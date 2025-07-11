@@ -81,6 +81,10 @@ interface R2Object {
   lastModified: Date;
   /** Whether this object represents a folder */
   isFolder: boolean;
+  /** Optional ETag for object versioning */
+  etag?: string;
+  /** Storage class (if applicable) */
+  storageClass?: string;
 }
 ```
 
@@ -328,6 +332,79 @@ Searches for files and folders across the entire bucket.
 GET /api/r2/search?q=document
 ```
 
+### Copy Object
+
+Copies a file or folder to a new location.
+
+**Endpoint:** `POST /api/r2/copy`
+
+**Request Body:**
+```typescript
+{
+  sourceKey: string; // Source object key
+  destKey: string;   // Destination object key
+}
+```
+
+**Response:**
+```typescript
+{
+  success: true
+}
+```
+
+**Example:**
+```javascript
+fetch('/api/r2/copy', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    sourceKey: 'documents/original.pdf',
+    destKey: 'backup/copy.pdf'
+  })
+});
+```
+
+### File Preview
+
+Generates a preview for supported file types.
+
+**Endpoint:** `GET /api/r2/preview`
+
+**Parameters:**
+- `key`: Object key to preview
+
+**Response:** Preview data or redirect to preview URL
+
+**Example:**
+```bash
+GET /api/r2/preview?key=documents/image.jpg
+```
+
+### Storage Statistics
+
+Gets storage usage statistics for the bucket.
+
+**Endpoint:** `GET /api/r2/stats`
+
+**Response:**
+```typescript
+{
+  success: true,
+  stats: {
+    totalSize: number;      // Total size in bytes
+    totalObjects: number;   // Total number of objects
+    folderCount: number;    // Number of folders
+    fileCount: number;      // Number of files
+  }
+}
+```
+
+**Example:**
+```bash
+GET /api/r2/stats
+```
+
 ## TypeScript Interfaces
 
 ### Component Props
@@ -377,7 +454,61 @@ interface UploadProgress {
   status: 'pending' | 'uploading' | 'completed' | 'error';
   /** Error message if status is 'error' */
   error?: string;
+  /** Upload ID for tracking */
+  uploadId?: string;
+  /** Bytes uploaded so far */
+  loaded?: number;
+  /** Total bytes to upload */
+  total?: number;
 }
+```
+
+### Store Types
+
+#### FileBrowserStore
+```typescript
+interface FileBrowserStore {
+  // State
+  objects: R2Object[]
+  currentPath: string
+  selectedObjects: Set<string>
+  isLoading: boolean
+  folderTree: FolderTreeNode[]
+  
+  // Drag & Drop
+  draggedObjects: R2Object[]
+  isDragging: boolean
+  
+  // Clipboard
+  clipboard: ClipboardData | null
+  
+  // Actions
+  loadObjects: (prefix: string) => Promise<void>
+  loadFolderTree: () => Promise<void>
+  setSelectedObjects: (keys: string[]) => void
+  deleteObjects: (keys: string[]) => Promise<void>
+  copyObjects: (sourceKeys: string[], destPath: string) => Promise<void>
+  
+  // Dialog Management
+  uploadDialogOpen: boolean
+  deleteDialogOpen: boolean
+  renameDialogOpen: boolean
+  // ... other dialogs
+}
+```
+
+#### ThemeStore
+```typescript
+interface ThemeStore {
+  theme: ThemeId
+  setTheme: (theme: ThemeId) => void
+  themes: Theme[]
+}
+
+type ThemeId = 'sunset' | 'ocean' | 'forest' | 'aurora' | 
+               'amber' | 'rose' | 'coral' |
+               'arctic' | 'twilight' | 'mint' |
+               'mono' | 'neutral' | 'gray'
 ```
 
 ## Usage Examples
@@ -415,23 +546,42 @@ await fetch(`/api/r2/delete?key=${encodeURIComponent(fileKey)}`, {
 ### Advanced Operations
 
 ```typescript
-// Search for files
-const searchResponse = await fetch(`/api/r2/search?q=${encodeURIComponent(query)}`);
-const { results } = await searchResponse.json();
+// Search for files with debouncing
+const searchFiles = debounce(async (query: string) => {
+  const response = await fetch(`/api/r2/search?q=${encodeURIComponent(query)}`);
+  const { results } = await response.json();
+  return results;
+}, 300);
 
-// Get folder tree
-const treeResponse = await fetch(`/api/r2/folder-tree?prefix=${encodeURIComponent(prefix)}`);
-const { folderTree } = await treeResponse.json();
+// Copy multiple files
+async function copyMultipleFiles(files: string[], destPath: string) {
+  const promises = files.map(file => 
+    fetch('/api/r2/copy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceKey: file,
+        destKey: `${destPath}/${file.split('/').pop()}`
+      })
+    })
+  );
+  await Promise.all(promises);
+}
 
-// Rename a file
-await fetch('/api/r2/rename', {
-  method: 'PUT',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    oldKey: 'old-name.pdf',
-    newKey: 'new-name.pdf'
-  })
-});
+// Get storage statistics
+const statsResponse = await fetch('/api/r2/stats');
+const { stats } = await statsResponse.json();
+console.log(`Total storage: ${formatBytes(stats.totalSize)}`);
+
+// Upload with Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.controller?.postMessage({
+    type: 'UPLOAD_FILE',
+    file: file,
+    uploadUrl: '/api/r2/upload',
+    path: currentPath
+  });
+}
 ```
 
 ### Error Handling
@@ -462,14 +612,74 @@ const objects = await safeApiCall<{ objects: R2Object[] }>(() =>
 );
 ```
 
+## State Management Examples
+
+### Using FileBrowserStore
+
+```typescript
+import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
+
+function FileManager() {
+  const {
+    objects,
+    isLoading,
+    loadObjects,
+    selectedObjects,
+    setSelectedObjects,
+    deleteObjects
+  } = useFileBrowserStore();
+
+  // Load objects with caching
+  useEffect(() => {
+    loadObjects(currentPath); // 60-second cache
+  }, [currentPath]);
+
+  // Multi-select handling
+  const handleSelect = (key: string, multi: boolean) => {
+    if (multi) {
+      const newSelection = new Set(selectedObjects);
+      if (newSelection.has(key)) {
+        newSelection.delete(key);
+      } else {
+        newSelection.add(key);
+      }
+      setSelectedObjects(Array.from(newSelection));
+    } else {
+      setSelectedObjects([key]);
+    }
+  };
+}
+```
+
+### Using ThemeStore
+
+```typescript
+import { useThemeStore } from '@/lib/stores/theme-store';
+
+function ThemeSwitcher() {
+  const { theme, setTheme, themes } = useThemeStore();
+
+  return (
+    <Select value={theme} onValueChange={setTheme}>
+      {themes.map(t => (
+        <SelectItem key={t.id} value={t.id}>
+          {t.name}
+        </SelectItem>
+      ))}
+    </Select>
+  );
+}
+```
+
 ## Rate Limiting & Performance
 
 ### Best Practices
 
-1. **Debounce Search Queries**: Wait 300ms between search requests
-2. **Batch Operations**: Group multiple operations when possible
-3. **Cache Results**: Cache folder tree and file lists in component state
-4. **Limit Results**: Search returns maximum 50 results for performance
+1. **Debounce Search Queries**: 300ms delay implemented by default
+2. **Object Caching**: 60-second TTL in FileBrowserStore
+3. **Lazy Loading**: Folder tree loads on-demand
+4. **Virtual Scrolling**: Components ready for large lists
+5. **Service Worker Uploads**: Non-blocking file transfers
 
 ### Performance Considerations
 

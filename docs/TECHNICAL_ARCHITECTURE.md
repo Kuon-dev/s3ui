@@ -42,30 +42,91 @@ The application follows a modern React-based architecture with server-side API r
 ## Technology Stack
 
 ### Frontend
-- **Next.js 15**: App Router for routing and server-side rendering
-- **React 18**: Component-based UI with hooks and concurrent features
-- **TypeScript**: Static typing for enhanced developer experience
-- **Tailwind CSS**: Utility-first CSS framework
-- **Shadcn UI**: Component library with consistent design system
+- **Next.js 15**: App Router with Turbopack for fast development
+- **React 19**: Latest React features with improved performance
+- **TypeScript**: Static typing with strict mode enabled
+- **Tailwind CSS v4**: Modern CSS with OKLCH color space
+- **Shadcn UI**: Comprehensive component library
+- **Motion (Framer Motion)**: Advanced animations with spring presets
+- **Zustand**: State management with persistence
+- **TanStack Query**: Data fetching (installed, ready for migration)
 - **CMDK**: Command palette for search functionality
 - **Sonner**: Toast notifications for user feedback
-- **Date-fns**: Date formatting and manipulation
 
 ### Backend
-- **Next.js API Routes**: Server-side endpoints
-- **AWS SDK v3**: Cloudflare R2 integration
+- **Next.js API Routes**: RESTful server-side endpoints
+- **AWS SDK v3**: Cloudflare R2 S3-compatible integration
 - **TypeScript**: Type-safe server-side code
+
+### UI Enhancements
+- **tw-animate-css**: CSS animations for UI feedback
+- **Lucide React**: Modern icon library
+- **Radix UI**: Accessible component primitives
+- **Class Variance Authority**: Dynamic styling utilities
+- **Tailwind Merge**: Intelligent class merging
 
 ### Development & Build
 - **ESLint**: Code linting and style enforcement
-- **npm**: Package management
-- **Turbopack**: Fast development builds
+- **Turbopack**: Lightning-fast development builds
+- **Standalone Output**: Optimized production builds
+- **Docker**: Containerization support
 
 ## Core Components
 
-### 1. R2 Operations Layer (`lib/r2/operations.ts`)
+### 1. State Management Layer (`lib/stores/`)
 
-Central library for all R2 storage operations:
+#### File Browser Store (`lib/stores/file-browser-store.ts`)
+Zustand-based central state management:
+
+```typescript
+interface FileBrowserStore {
+  // State
+  objects: R2Object[]
+  folderTree: FolderTreeNode[]
+  selectedObjects: Set<string>
+  draggedObjects: R2Object[]
+  
+  // Actions
+  loadObjects: (prefix: string) => Promise<void>
+  loadFolderTree: () => Promise<void>
+  setSelectedObjects: (keys: string[]) => void
+  
+  // Cache management
+  clearCache: (prefix?: string) => void
+  
+  // Dialog states
+  uploadDialogOpen: boolean
+  deleteDialogOpen: boolean
+  // ... other dialog states
+}
+```
+
+**Features:**
+- **60-second Object Caching**: Reduces API calls
+- **Optimistic Updates**: Immediate UI feedback
+- **Persistence**: View preferences saved to localStorage
+- **Complex State**: Drag & drop, clipboard, multi-select
+
+#### Theme Store (`lib/stores/theme-store.ts`)
+Advanced theming system:
+
+```typescript
+interface ThemeStore {
+  theme: ThemeId
+  setTheme: (theme: ThemeId) => void
+  themes: Theme[]
+}
+```
+
+**12 Pre-built Themes:**
+- Vibrant: Sunset, Ocean, Forest, Aurora
+- Warm: Amber, Rose, Coral
+- Cool: Arctic, Twilight, Mint
+- Minimal: Mono, Neutral, Gray
+
+### 2. R2 Operations Layer (`lib/r2/operations.ts`)
+
+Enhanced R2 storage operations:
 
 ```typescript
 // Core operations
@@ -73,66 +134,115 @@ export async function listObjects(prefix?: string): Promise<R2Object[]>
 export async function createFolder(folderPath: string): Promise<void>
 export async function deleteObject(key: string): Promise<void>
 export async function renameObject(oldKey: string, newKey: string): Promise<void>
+export async function copyObject(sourceKey: string, destKey: string): Promise<void>
 
 // Tree operations
 export async function getFolderTree(prefix?: string): Promise<FolderTreeNode[]>
 export async function listObjectsRecursive(prefix: string): Promise<R2Object[]>
 
-// Metadata operations
+// Enhanced operations
 export async function getFileMetadata(key: string): Promise<FileMetadata>
+export async function getStorageStats(): Promise<StorageStats>
+export async function searchObjects(query: string): Promise<SearchResult[]>
 ```
 
 **Design Patterns:**
 - **Repository Pattern**: Abstracts R2 API complexity
-- **Async/Await**: Consistent promise handling
-- **Error Propagation**: Lets callers handle errors appropriately
+- **Error Handling**: Comprehensive error catching and logging
+- **Unicode Normalization**: Handles special characters in filenames
 
-### 2. File Browser Component (`components/r2/file-browser.tsx`)
+### 3. File Browser Component (`components/r2/file-browser.tsx`)
 
-Main application interface with Windows Explorer-style layout:
-
-```typescript
-interface FileBrowserProps {
-  initialPath?: string;
-}
-
-export function FileBrowser({ initialPath = '' }: FileBrowserProps)
-```
-
-**Features:**
-- Dual-pane layout (sidebar + main content)
-- Real-time file operations
-- Drag & drop support
-- Keyboard shortcuts
-- Search functionality
-
-### 3. Global Search Component (`components/r2/global-search.tsx`)
-
-Command palette for searching across all files:
+Enhanced main application interface:
 
 ```typescript
-interface GlobalSearchProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onNavigate: (path: string) => void;
+export function FileBrowser() {
+  const store = useFileBrowserStore()
+  
+  return (
+    <div className="h-screen flex flex-col">
+      <UtilityHeader />
+      <PanelGroup direction="horizontal">
+        <Panel defaultSize={25} minSize={15}>
+          <R2FileTree />
+        </Panel>
+        <PanelResizeHandle />
+        <Panel>
+          <FileList />
+        </Panel>
+      </PanelGroup>
+    </div>
+  )
 }
 ```
 
 **Features:**
-- Real-time search with debouncing (300ms)
-- Keyboard navigation (⌘K/Ctrl+K)
-- File actions (preview, download)
-- Result limiting (50 items) for performance
+- **Resizable Panels**: Using react-resizable-panels
+- **Integrated Store**: Zustand state management
+- **Utility Header**: Quick actions and navigation
+- **Enhanced Drag & Drop**: Multi-file support with visual feedback
+- **Keyboard Shortcuts**: Delete, Rename, Copy/Paste
+- **Empty States**: User-friendly empty folder messages
 
-### 4. Upload Manager (`lib/service-worker/upload-manager.ts`)
+### 4. Global Search Component (`components/r2/global-search-enhanced.tsx`)
 
-Service Worker-based file upload system:
+Advanced command palette using CMDK:
+
+```typescript
+export function GlobalSearchEnhanced() {
+  const [query, setQuery] = useState('')
+  const debouncedQuery = useDebounce(query, 300)
+  
+  return (
+    <CommandDialog>
+      <CommandInput placeholder="Search files..." />
+      <CommandList>
+        <CommandGroup heading="Files">
+          {results.map(result => (
+            <CommandItem key={result.key}>
+              {result.name}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </CommandDialog>
+  )
+}
+```
 
 **Features:**
-- Background uploads
-- Progress tracking
-- Multipart upload support
-- Upload queue management
+- **300ms Debouncing**: Reduces API calls
+- **CMDK Integration**: Smooth keyboard navigation
+- **File Actions**: Preview, download, navigate
+- **Result Limiting**: 50 items max for performance
+- **Search History**: Recent searches saved
+
+### 5. Service Worker (`public/upload-sw.js`)
+
+Enhanced upload management system:
+
+```javascript
+// Version 2.0 features
+self.addEventListener('message', event => {
+  if (event.data.type === 'UPLOAD_FILE') {
+    handleFileUpload(event.data)
+  }
+})
+
+async function handleFileUpload({ file, uploadUrl }) {
+  // Progress tracking
+  // Queue management
+  // Multipart support for large files
+  // Network resilience
+}
+```
+
+**Features:**
+- **Background Uploads**: Non-blocking file uploads
+- **Progress Events**: Real-time upload progress
+- **Queue Management**: Sequential upload processing
+- **Error Recovery**: Automatic retry on failure
+- **Large File Support**: Multipart uploads for files >5MB
 
 ## API Design
 
@@ -154,13 +264,16 @@ interface ApiResponse<T> {
 | Endpoint | Method | Purpose | Parameters |
 |----------|--------|---------|------------|
 | `/api/r2/list` | GET | List objects | `prefix` |
-| `/api/r2/upload` | POST | Upload files | Form data |
+| `/api/r2/upload` | POST | Upload files | Form data with validation |
 | `/api/r2/download` | GET | Download file | `key` |
 | `/api/r2/create-folder` | POST | Create folder | `path` |
-| `/api/r2/delete` | DELETE | Delete object | `key` |
+| `/api/r2/delete` | DELETE | Delete object | `key` (recursive for folders) |
 | `/api/r2/rename` | PUT | Rename object | `oldKey`, `newKey` |
+| `/api/r2/copy` | POST | Copy object | `sourceKey`, `destKey` |
 | `/api/r2/folder-tree` | GET | Get folder tree | `prefix` |
 | `/api/r2/search` | GET | Search files | `q` (query) |
+| `/api/r2/preview` | GET | File preview | `key` |
+| `/api/r2/stats` | GET | Storage stats | - |
 
 #### Error Handling
 
@@ -234,30 +347,35 @@ export class ErrorBoundary extends Component {
 
 ## Performance Optimizations
 
-### 1. Lazy Loading
-- Folder tree nodes load children on expansion
-- File lists paginated with virtual scrolling potential
-- Component code splitting with dynamic imports
+### 1. State Management & Caching
+- **60-second Object Cache**: Automatic cache invalidation
+- **Folder Tree Caching**: Lazy-loaded folder contents
+- **Request Deduplication**: Prevents duplicate API calls
+- **Optimistic Updates**: Immediate UI feedback
 
-### 2. Caching Strategies
-- Folder tree state cached in React state
-- Search results debounced to reduce API calls
-- File metadata cached for quick access
+### 2. UI Performance
+- **Virtual Scrolling Ready**: Components prepared for large lists
+- **Debounced Search**: 300ms delay reduces API calls
+- **Memoized Components**: React.memo for expensive renders
+- **Spring Animations**: Hardware-accelerated Motion animations
 
 ### 3. Service Worker Optimization
-- Background file uploads
-- Upload queue management
-- Progress tracking without blocking UI
+- **Background Uploads**: Non-blocking file transfers
+- **Queue Management**: Sequential processing
+- **Progress Tracking**: Real-time upload feedback
+- **Network Resilience**: Automatic retry on failure
 
-### 4. React Performance
-- `useCallback` for stable function references
-- `useMemo` for expensive computations
-- Component memoization where appropriate
+### 4. Build & Bundle Optimization
+- **Turbopack**: Fast development builds
+- **Standalone Output**: Optimized production bundles
+- **Dynamic Imports**: Code splitting for large components
+- **Tree Shaking**: Removes unused code
 
 ### 5. Network Optimization
-- Multipart uploads for large files
-- Parallel API requests where possible
-- Request deduplication for identical operations
+- **Multipart Uploads**: For files larger than 5MB
+- **Parallel Requests**: Batch operations where possible
+- **Unicode Normalization**: Handles special characters
+- **File Size Validation**: 100MB limit per file
 
 ## Security Considerations
 
@@ -268,20 +386,24 @@ All sensitive configuration stored in `.env.local`:
 - `R2_SECRET_ACCESS_KEY`
 - `R2_BUCKET_NAME`
 
-### 2. Input Validation
-- All user inputs sanitized and validated
-- File paths validated to prevent directory traversal
-- File type validation on uploads
+### 2. Input Validation & Sanitization
+- **Unicode Normalization**: NFD normalization for filenames
+- **Path Traversal Prevention**: Validates against ../ patterns
+- **File Size Limits**: 100MB max per file
+- **Content Type Validation**: Checks file MIME types
+- **Special Character Handling**: Sanitizes filenames
 
 ### 3. Error Information
-- Sensitive information excluded from error messages
-- Error details logged server-side only
-- Generic error messages for client
+- **No Sensitive Data**: Error messages exclude credentials
+- **Server-side Logging**: Detailed logs kept server-side
+- **User-friendly Messages**: Generic errors for clients
+- **Request Tracking**: Error correlation for debugging
 
-### 4. CORS and Headers
-- Appropriate CORS policies for API endpoints
-- Security headers configured
-- Content-Type validation
+### 4. Security Headers & Policies
+- **CORS Configuration**: Restricted to application origin
+- **Content Security Policy**: Prevents XSS attacks
+- **File Upload Validation**: Server-side verification
+- **API Rate Limiting**: Prevents abuse
 
 ## Code Quality Standards
 
@@ -307,17 +429,76 @@ All sensitive configuration stored in `.env.local`:
 
 ## Deployment Considerations
 
-### 1. Environment Configuration
-- Production environment variables
-- Build optimization settings
-- CDN configuration for static assets
+### 1. Build Configuration
+- **Standalone Output**: Self-contained Next.js builds
+- **Turbopack**: Development optimization
+- **Docker Support**: Multi-stage Dockerfile
+- **Environment Variables**: Secure credential management
 
-### 2. Monitoring
-- Error tracking and logging
-- Performance monitoring
-- Usage analytics
+### 2. Production Deployment
+```bash
+# Docker deployment
+docker compose up -d
 
-### 3. Scaling Considerations
-- Horizontal scaling with stateless design
-- Database considerations for metadata
-- CDN usage for file delivery
+# Traditional deployment
+npm run build
+npm start
+```
+
+### 3. Monitoring & Observability
+- **Error Boundaries**: Graceful error handling
+- **Performance Tracking**: Core Web Vitals
+- **API Monitoring**: Response time tracking
+- **Usage Analytics**: User behavior insights
+
+### 4. Scaling Strategy
+- **Stateless Design**: Easy horizontal scaling
+- **CDN Integration**: Static asset caching
+- **Service Worker**: Client-side resilience
+- **Cache Headers**: Optimized caching policies
+
+## Theme System Architecture
+
+### OKLCH Color Space
+The application uses the OKLCH (Oklab Lightness Chroma Hue) color space for perceptually uniform colors:
+
+```css
+--primary: oklch(70% 0.25 25);  /* L C H values */
+```
+
+**Benefits:**
+- **Perceptual Uniformity**: Colors appear consistent across different hues
+- **Better Gradients**: Smooth color transitions
+- **Accessibility**: Easier to maintain contrast ratios
+- **Modern Standard**: Future-proof color system
+
+### Theme Structure
+Each theme defines a complete color palette:
+
+```typescript
+interface Theme {
+  id: string
+  name: string
+  colors: {
+    background: string
+    foreground: string
+    primary: string
+    secondary: string
+    accent: string
+    muted: string
+    // ... more color tokens
+  }
+}
+```
+
+### Runtime Theme Switching
+Themes are applied via CSS custom properties:
+
+```typescript
+function applyTheme(theme: Theme) {
+  const root = document.documentElement
+  Object.entries(theme.colors).forEach(([key, value]) => {
+    root.style.setProperty(`--${key}`, value)
+  })
+}
+```

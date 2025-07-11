@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+import { Upload, FolderOpen } from 'lucide-react';
 
 interface FileDropZoneProps {
   children: React.ReactNode;
-  onDrop: (item: any) => void;
+  onDrop?: (item: { key: string; name: string; isFolder: boolean; selectedCount?: number }) => void;
   onDropFiles?: (files: File[]) => void;
   currentPath: string;
   className?: string;
@@ -15,6 +17,7 @@ interface FileDropZoneProps {
 export function FileDropZone({ children, onDrop, onDropFiles, currentPath, className }: FileDropZoneProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [isNativeFileDragOver, setIsNativeFileDragOver] = useState(false);
+  const [isInternalDragOver, setIsInternalDragOver] = useState(false);
   
   const { 
     draggingItem,
@@ -23,108 +26,158 @@ export function FileDropZone({ children, onDrop, onDropFiles, currentPath, class
     handleDrop: handleStoreDrop
   } = useFileBrowserStore();
 
-  // Handle internal drag-and-drop
-  useEffect(() => {
-    if (!draggingItem || !ref.current) return;
+  // Check if we can drop here
+  const canDropHere = useCallback(() => {
+    if (!draggingItem) return false;
+    const itemFolder = draggingItem.key.substring(0, draggingItem.key.lastIndexOf('/'));
+    return itemFolder !== currentPath && 
+      !(draggingItem.isFolder && currentPath.startsWith(draggingItem.key));
+  }, [draggingItem, currentPath]);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!ref.current) return;
-      
-      const rect = ref.current.getBoundingClientRect();
-      const isInBounds = 
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom;
-      
-      // Check if we can drop here
-      const itemFolder = draggingItem.key.substring(0, draggingItem.key.lastIndexOf('/'));
-      const canDropHere = itemFolder !== currentPath && 
-        !(draggingItem.isFolder && currentPath.startsWith(draggingItem.key));
-      
-      if (isInBounds && canDropHere) {
-        if (currentDropTarget !== currentPath) {
-          console.log('[FileDropZone] Mouse entered drop zone:', currentPath);
-          setCurrentDropTarget(currentPath);
-        }
-      } else if (currentDropTarget === currentPath) {
-        console.log('[FileDropZone] Mouse left drop zone:', currentPath);
-        setCurrentDropTarget(null);
-      }
-    };
-
-    const handleMouseUp = async (e: MouseEvent) => {
-      if (!ref.current || currentDropTarget !== currentPath || !draggingItem) return;
-      
-      const rect = ref.current.getBoundingClientRect();
-      const isInBounds = 
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom;
-      
-      if (isInBounds) {
-        console.log('[FileDropZone] Drop detected in current folder');
-        await handleStoreDrop(currentPath);
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [draggingItem, currentDropTarget, currentPath, setCurrentDropTarget, handleStoreDrop]);
-
-  const isOver = currentDropTarget === currentPath;
-  const canDrop = draggingItem && isOver;
-
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Check if it's a native file drag
     if (e.dataTransfer.types.includes('Files')) {
-      e.preventDefault();
       setIsNativeFileDragOver(true);
+    } 
+    // Check if it's internal drag
+    else if (e.dataTransfer.types.includes('application/json') && canDropHere()) {
+      setIsInternalDragOver(true);
+      setCurrentDropTarget(currentPath);
     }
-  };
+  }, [canDropHere, currentPath, setCurrentDropTarget]);
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     // Check if we're actually leaving the drop zone
-    if (e.currentTarget === e.target) {
-      setIsNativeFileDragOver(false);
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) {
+      const x = e.clientX;
+      const y = e.clientY;
+      
+      if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+        setIsNativeFileDragOver(false);
+        setIsInternalDragOver(false);
+        if (currentDropTarget === currentPath) {
+          setCurrentDropTarget(null);
+        }
+      }
     }
-  };
+  }, [currentDropTarget, currentPath, setCurrentDropTarget]);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.dataTransfer.types.includes('Files') || canDropHere()) {
+      e.dataTransfer.dropEffect = 'copy';
+    } else {
+      e.dataTransfer.dropEffect = 'none';
+    }
+  }, [canDropHere]);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsNativeFileDragOver(false);
+    setIsInternalDragOver(false);
+    
+    // Handle native file drop
     if (e.dataTransfer.files.length > 0) {
-      e.preventDefault();
-      setIsNativeFileDragOver(false);
       if (onDropFiles) {
         onDropFiles(Array.from(e.dataTransfer.files));
       }
     }
-  };
+    // Handle internal drag and drop
+    else if (e.dataTransfer.types.includes('application/json')) {
+      try {
+        const dragData = e.dataTransfer.getData('application/json');
+        if (dragData && canDropHere()) {
+          const data = JSON.parse(dragData);
+          console.log('[FileDropZone] Drop received:', { data, currentPath });
+          if (onDrop) {
+            onDrop(data);
+          } else {
+            await handleStoreDrop(currentPath);
+          }
+        }
+      } catch (error) {
+        console.error('[FileDropZone] Error handling drop:', error);
+      }
+    }
+  }, [canDropHere, currentPath, onDrop, onDropFiles, handleStoreDrop]);
+
+  const showInternalDropIndicator = isInternalDragOver && canDropHere();
+  const showNativeDropIndicator = isNativeFileDragOver;
 
   return (
     <div 
       ref={ref} 
       className={cn(
-        className,
-        (isOver && canDrop) && 'bg-primary/10 border-2 border-primary border-dashed',
-        isNativeFileDragOver && 'bg-primary/10 border-2 border-primary border-dashed animate-pulse'
+        'relative',
+        className
       )}
-      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       {children}
-      {(isOver && canDrop) && (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className="bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg shadow-lg">
-            Drop here to move to this folder
-          </div>
-        </div>
-      )}
+      
+      <AnimatePresence>
+        {showInternalDropIndicator && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 pointer-events-none z-10"
+          >
+            <div className="absolute inset-0 bg-primary/5 rounded-lg" />
+            <div className="absolute inset-0 border-2 border-primary border-dashed rounded-lg" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <motion.div
+                initial={{ scale: 0.8, y: -10 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: 'spring', bounce: 0.3 }}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+              >
+                <FolderOpen className="h-4 w-4" />
+                Drop here to move
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+        
+        {showNativeDropIndicator && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 pointer-events-none z-10"
+          >
+            <div className="absolute inset-0 bg-primary/10 rounded-lg animate-pulse" />
+            <div className="absolute inset-0 border-2 border-primary border-dashed rounded-lg" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <motion.div
+                initial={{ scale: 0.8, y: -10 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: 'spring', bounce: 0.3 }}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Drop files to upload
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

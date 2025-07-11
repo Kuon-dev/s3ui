@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { R2Object } from '@/lib/r2/operations';
 import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 import { cn } from '@/lib/utils';
+import { DragPreview } from './drag-preview';
 
 interface DraggableWrapperProps {
   object: R2Object;
@@ -11,6 +12,8 @@ interface DraggableWrapperProps {
   className?: string;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  selected?: boolean;
+  selectedCount?: number;
 }
 
 export function DraggableWrapper({ 
@@ -18,11 +21,12 @@ export function DraggableWrapper({
   children, 
   className,
   onDragStart,
-  onDragEnd
+  onDragEnd,
+  selected = false,
+  selectedCount = 1
 }: DraggableWrapperProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
   const { 
     startDragging, 
@@ -35,104 +39,96 @@ export function DraggableWrapper({
     ? object.key.replace(/\/$/, '').split('/').pop() || object.key.replace(/\/$/, '')
     : object.key.split('/').pop() || object.key;
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only handle left mouse button
-    
-    const rect = nodeRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
-    setDragOffset({ x: offsetX, y: offsetY });
-    
-    console.log('[Draggable] Drag started:', {
+  const handleDragStart = (e: React.DragEvent) => {
+    // Set drag data
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', object.key);
+    e.dataTransfer.setData('application/json', JSON.stringify({
       key: object.key,
+      name: filename,
       isFolder: object.isFolder,
-      name: filename
-    });
+      selectedCount: selected ? selectedCount : 1
+    }));
+    
+    // Create invisible drag image
+    const dragImage = document.createElement('div');
+    dragImage.style.position = 'absolute';
+    dragImage.style.top = '-1000px';
+    dragImage.style.width = '1px';
+    dragImage.style.height = '1px';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    
+    // Clean up drag image after a brief delay
+    setTimeout(() => {
+      document.body.removeChild(dragImage);
+    }, 0);
     
     setIsDragging(true);
-    startDragging({
+    
+    // Create drag item with selected items if applicable
+    const dragItem = {
       key: object.key,
       name: filename,
       isFolder: object.isFolder
-    });
+    };
+    
+    // Pass drag item to store which will handle selected items
+    startDragging(dragItem);
     
     if (onDragStart) onDragStart();
     
-    // Prevent text selection during drag
-    e.preventDefault();
+    // Add dragging class to body for global cursor
+    document.body.classList.add('dragging');
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !nodeRef.current) return;
-    
-    // Update visual position
-    const x = e.clientX - dragOffset.x;
-    const y = e.clientY - dragOffset.y;
-    
-    nodeRef.current.style.transform = `translate(${x}px, ${y}px)`;
-    nodeRef.current.style.zIndex = '1000';
-  }, [isDragging, dragOffset]);
-
-  const handleMouseUp = useCallback(() => {
-    if (!isDragging) return;
-    
-    console.log('[Draggable] Drag ended:', {
-      key: object.key,
-      currentDropTarget
-    });
+  const handleDragEnd = (e: React.DragEvent) => {
+    e.preventDefault();
     
     setIsDragging(false);
     
-    // Reset position after drop
-    if (nodeRef.current) {
-      nodeRef.current.style.transform = '';
-      nodeRef.current.style.zIndex = '';
-    }
+    // Small delay to allow drop event to fire first
+    setTimeout(() => {
+      stopDragging();
+      if (onDragEnd) onDragEnd();
+    }, 0);
     
-    stopDragging();
-    if (onDragEnd) onDragEnd();
-  }, [isDragging, object.key, currentDropTarget, stopDragging, onDragEnd]);
+    // Remove dragging class from body
+    document.body.classList.remove('dragging');
+  };
 
+  // Clean up on unmount
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
-
-  // Reset position when component unmounts or object changes
-  useEffect(() => {
-    const currentNode = nodeRef.current;
     return () => {
-      if (currentNode) {
-        currentNode.style.transform = '';
-        currentNode.style.zIndex = '';
-      }
+      document.body.classList.remove('dragging');
     };
-  }, [object.key]);
+  }, []);
 
   const isValidDropTarget = object.isFolder && validDropTargets.has(object.key);
   const isCurrentDropTarget = currentDropTarget === object.key;
 
   return (
-    <div
-      ref={nodeRef}
-      className={cn(
-        'cursor-move transition-all touch-none',
-        isDragging && 'opacity-50 z-50',
-        isValidDropTarget && isCurrentDropTarget && 'ring-2 ring-primary ring-offset-2',
-        className
-      )}
-      onMouseDown={handleMouseDown}
-    >
-      {children}
-    </div>
+    <>
+      <div
+        ref={nodeRef}
+        draggable
+        className={cn(
+          'cursor-grab active:cursor-grabbing transition-all',
+          isDragging && 'opacity-50',
+          isValidDropTarget && isCurrentDropTarget && 'ring-2 ring-primary ring-offset-2',
+          className
+        )}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        {children}
+      </div>
+      
+      {/* Custom drag preview */}
+      <DragPreview 
+        isDragging={isDragging} 
+        selectedCount={selected ? selectedCount : 1}
+      />
+    </>
   );
 }
