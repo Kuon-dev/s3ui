@@ -31,6 +31,8 @@ export interface NavigationState {
   toggleFolder: (path: string) => void;
   expandPathToFolder: (targetPath: string) => void;
   collapseAll: () => void;
+  expandAllFrom: (basePath: string) => void;
+  collapseAllFrom: (basePath: string) => void;
   isExpanded: (path: string) => boolean;
   
   // Loaded folders tracking
@@ -172,6 +174,43 @@ export const useNavigationStore = create<NavigationState>()(
       
       collapseAll: () => {
         set({ expandedFolders: new Set<string>() });
+      },
+      
+      expandAllFrom: (basePath: string) => {
+        // This would need to work with the file system store to get all folders
+        // For now, we'll expand the current folder and its immediate children
+        // In a real implementation, we'd need to recursively get all subfolders
+        set((state) => {
+          const newExpanded = new Set(state.expandedFolders);
+          newExpanded.add(basePath);
+          
+          // Also expand immediate children that are already loaded
+          state.loadedFolders.forEach(loadedPath => {
+            if (loadedPath.startsWith(basePath + '/') || (basePath === '' && loadedPath !== '')) {
+              newExpanded.add(loadedPath);
+            }
+          });
+          
+          return { expandedFolders: newExpanded };
+        });
+      },
+      
+      collapseAllFrom: (basePath: string) => {
+        set((state) => {
+          const newExpanded = new Set(state.expandedFolders);
+          
+          // Collapse the base path and all its children
+          newExpanded.delete(basePath);
+          
+          // Collapse all child folders
+          newExpanded.forEach(expandedPath => {
+            if (expandedPath.startsWith(basePath + '/') || (basePath === '' && expandedPath !== '')) {
+              newExpanded.delete(expandedPath);
+            }
+          });
+          
+          return { expandedFolders: newExpanded };
+        });
       },
       
       isExpanded: (path: string) => {

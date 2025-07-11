@@ -11,6 +11,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { springPresets } from '@/lib/animations';
 import { DropZone } from './drop-zone';
 import { R2Object } from '@/lib/r2/operations';
+import { FileTreeContextMenu } from './file-tree-context-menu';
+import { useFileOperations } from '@/lib/hooks/use-file-operations';
+import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { toast } from 'sonner';
 
 interface R2FileTreeProps {
   currentPath: string;
@@ -18,7 +22,7 @@ interface R2FileTreeProps {
   className?: string;
 }
 
-interface TreeNode {
+export interface TreeNode {
   name: string;
   path: string;
   children: TreeNode[];
@@ -33,10 +37,17 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     loadFolderTree,
     isPathExpanded, 
     toggleFolder, 
-    loadFolderChildren 
+    loadFolderChildren,
+    setSelectedObject,
+    setShowCreateFolderDialog,
+    setShowRenameDialog
   } = useFileBrowserStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredFolder, setHoveredFolder] = useState<string | null>(null);
+  
+  // Additional hooks for context menu
+  const { deleteItems } = useFileOperations();
+  const { expandAllFrom, collapseAllFrom } = useNavigationStore();
 
   // Convert folderTree from store to our TreeNode format
   const treeData = useMemo(() => {
@@ -75,6 +86,49 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
   const handleFolderClick = useCallback(async (path: string) => {
     await onNavigate(path);
   }, [onNavigate]);
+  
+  // Context menu handlers
+  const handleCreateFolder = useCallback((parentPath: string) => {
+    onNavigate(parentPath); // Navigate to parent folder first
+    setShowCreateFolderDialog(true);
+  }, [onNavigate, setShowCreateFolderDialog]);
+  
+  const handleRename = useCallback((node: TreeNode) => {
+    const folderObject: R2Object = {
+      key: node.path.endsWith('/') ? node.path : node.path + '/',
+      size: 0,
+      lastModified: new Date(),
+      isFolder: true
+    };
+    setSelectedObject(folderObject);
+    setShowRenameDialog(true);
+  }, [setSelectedObject, setShowRenameDialog]);
+  
+  const handleDelete = useCallback((node: TreeNode) => {
+    const folderKey = node.path.endsWith('/') ? node.path : node.path + '/';
+    deleteItems({ keys: [folderKey] });
+  }, [deleteItems]);
+  
+  const handleRefresh = useCallback(async (path: string) => {
+    await loadFolderChildren(path);
+    await loadFolderTree(path);
+    toast.success('Folder refreshed');
+  }, [loadFolderChildren, loadFolderTree]);
+  
+  const handleExpandAll = useCallback((path: string) => {
+    expandAllFrom(path);
+    toast.success('Expanded all folders');
+  }, [expandAllFrom]);
+  
+  const handleCollapseAll = useCallback((path: string) => {
+    collapseAllFrom(path);
+    toast.success('Collapsed all folders');
+  }, [collapseAllFrom]);
+  
+  const handleShowProperties = useCallback(() => {
+    // Properties dialog not implemented yet
+    toast.info('Properties dialog coming soon!');
+  }, []);
 
   const filterTree = useCallback((node: TreeNode, query: string): TreeNode | null => {
     if (!query) return node;
@@ -187,7 +241,19 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
           }}
           className="my-0.5"
         >
-          {nodeContent}
+          <FileTreeContextMenu
+            node={node}
+            onCreateFolder={() => handleCreateFolder(node.path)}
+            onRename={() => handleRename(node)}
+            onDelete={() => handleDelete(node)}
+            onRefresh={() => handleRefresh(node.path)}
+            onNavigate={() => handleFolderClick(node.path)}
+            onExpandAll={() => handleExpandAll(node.path)}
+            onCollapseAll={() => handleCollapseAll(node.path)}
+            onShowProperties={() => handleShowProperties()}
+          >
+            {nodeContent}
+          </FileTreeContextMenu>
         </DropZone>
         
         <AnimatePresence initial={false}>

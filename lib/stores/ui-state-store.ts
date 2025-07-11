@@ -84,7 +84,7 @@ const createFolderDialogSlice = createDialogSlice('CreateFolder');
 const renameDialogSlice = createDialogSlice('Rename');
 const deleteDialogSlice = createDialogSlice('Delete');
 const previewDialogSlice = createDialogSlice('Preview');
-const globalSearchSlice = createDialogSlice('GlobalSearch');
+// Global search doesn't follow the Dialog naming pattern
 
 export const useUIStateStore = create<UIState>()(
   persist(
@@ -108,7 +108,6 @@ export const useUIStateStore = create<UIState>()(
         ...renameDialogSlice(set, get, api),
         ...deleteDialogSlice(set, get, api),
         ...previewDialogSlice(set, get, api),
-        ...globalSearchSlice(set, get, api),
         
         // View preferences
         viewMode: 'list',
@@ -123,6 +122,12 @@ export const useUIStateStore = create<UIState>()(
         
         // Drop zone state
         dropTargetPath: null,
+        
+        // Global search
+        showGlobalSearch: false,
+        setShowGlobalSearch: (show: boolean) => {
+          set({ showGlobalSearch: show });
+        },
         
         // Debounced setters
         debouncedSetSearchQuery,

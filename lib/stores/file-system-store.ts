@@ -131,7 +131,8 @@ export const useFileSystemStore = create<FileSystemState>()(
               return [...nodes, {
                 name: folderName,
                 path: folderName,
-                children: []
+                children: [],
+                isFolder: true
               }];
             }
             
@@ -142,7 +143,8 @@ export const useFileSystemStore = create<FileSystemState>()(
                   children: [...(node.children || []), {
                     name: folderName,
                     path: `${targetPath}/${folderName}`,
-                    children: []
+                    children: [],
+                    isFolder: true
                   }]
                 };
               }
@@ -265,6 +267,7 @@ export const useFileSystemStore = create<FileSystemState>()(
         removeItem: (name) => localStorage.removeItem(name)
       },
       // Only persist the tree structure, not the objects themselves
+      // @ts-expect-error - partialize returns partial state
       partialize: (state) => ({
         folderTree: state.folderTree,
         cacheTimeout: state.cacheTimeout
