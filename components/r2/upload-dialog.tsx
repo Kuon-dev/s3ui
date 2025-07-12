@@ -344,7 +344,7 @@ export function UploadDialog({
                 exit={{ opacity: 0 }}
                 className="mt-grid-6 space-y-grid-3"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mt-2 pb-2">
                   <h4 className="font-medium text-sm">
                     Selected Files ({selectedFiles.length})
                   </h4>
@@ -375,7 +375,7 @@ export function UploadDialog({
                   </motion.div>
                 )}
                 
-                <div className="space-y-grid-2 max-h-64 overflow-y-auto">
+                <div className="max-h-64 overflow-y-auto my-4 space-y-2">
                   <AnimatePresence mode="popLayout">
                     {selectedFiles.map((fileItem, index) => {
                       const Icon = getFileIcon(fileItem.file.name, false);

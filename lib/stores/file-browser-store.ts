@@ -3,7 +3,12 @@ import { persist } from 'zustand/middleware';
 import { R2Object, FolderTreeNode } from '@/lib/r2/operations';
 import { toast } from 'sonner';
 import { ensureFolderPath, stripTrailingSlash, getParentPath } from '@/lib/utils/path';
+import { validatePath, normalizePath, canMoveOrRename } from '@/lib/utils/path-validation';
 import { useNavigationStore } from './navigation-store';
+import { fileOperationQueue, hasConflictingOperation } from '@/lib/utils/operation-queue';
+import { emitFileDeleted, emitFileRenamed, emitFolderCreated, emitFolderDeleted, emitFolderRenamed } from '@/lib/utils/file-event-bus';
+import { fetchWithRetry, r2OperationWithRetry } from '@/lib/utils/retry-utils';
+import { dragDropGuard } from '@/lib/utils/drag-drop-guards';
 
 interface ClipboardItem {
   path: string;
@@ -170,7 +175,11 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         get().setLoading(loadingKey, true);
         try {
           const apiPrefix = path && !path.endsWith('/') ? `${path}/` : path;
-          const response = await fetch(`/api/r2/list?prefix=${encodeURIComponent(apiPrefix)}`);
+          const response = await fetchWithRetry(
+            `/api/r2/list?prefix=${encodeURIComponent(apiPrefix)}`,
+            undefined,
+            { maxAttempts: 3 }
+          );
           const data = await response.json();
           
           if (response.ok) {
@@ -193,7 +202,11 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         
         get().setLoading(loadingKey, true);
         try {
-          const response = await fetch(`/api/r2/folder-tree?prefix=${encodeURIComponent(prefix)}`);
+          const response = await fetchWithRetry(
+            `/api/r2/folder-tree?prefix=${encodeURIComponent(prefix)}`,
+            undefined,
+            { maxAttempts: 2 }
+          );
           const data = await response.json();
           
           if (response.ok) {
@@ -233,54 +246,152 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       },
       
       refreshCurrentFolder: async () => {
-        const { currentPath, loadObjects, loadFolderTree } = get();
-        await Promise.all([
-          loadObjects(currentPath, true), // Force refresh
-          loadFolderTree(currentPath ? `${currentPath}/` : '')
-        ]);
+        const { currentPath, loadObjects, loadFolderTree, loadedFolders } = get();
+        
+        // First, load the current path objects
+        const loadObjectsPromise = loadObjects(currentPath, true);
+        
+        // Then, reload all previously loaded folders to preserve tree structure
+        const reloadPromises: Promise<void>[] = [loadObjectsPromise];
+        
+        // Always load root
+        reloadPromises.push(loadFolderTree(''));
+        
+        // Reload all other previously loaded folders
+        for (const loadedPath of loadedFolders) {
+          // Skip root (already loaded) and avoid duplicates
+          if (loadedPath !== '' && loadedPath !== '/') {
+            reloadPromises.push(loadFolderTree(loadedPath));
+          }
+        }
+        
+        await Promise.all(reloadPromises);
       },
       
       deleteObject: async (key: string) => {
+        // Check for conflicting operations
+        if (hasConflictingOperation(key, 'delete')) {
+          toast.error('Another operation is in progress for this item');
+          return;
+        }
+
         const loadingKey = `delete-${key}`;
-        get().setLoading(loadingKey, true);
         
-        try {
-          const response = await fetch('/api/r2/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key })
-          });
+        // Queue the operation
+        await fileOperationQueue.enqueue({
+          type: 'delete',
+          description: `Deleting ${key}`,
+          execute: async () => {
+            get().setLoading(loadingKey, true);
+            
+            try {
+          const response = await r2OperationWithRetry(
+            () => fetch('/api/r2/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key })
+            }),
+            'Delete operation',
+            { maxAttempts: 2 }
+          );
           
           if (response.ok) {
             toast.success('Deleted successfully');
+            
+            // If deleting a folder, remove it and its children from loadedFolders
+            if (key.endsWith('/')) {
+              const deletedFolderPath = key.slice(0, -1);
+              const loadedFolders = get().loadedFolders;
+              const newLoadedFolders = new Set<string>();
+              
+              loadedFolders.forEach(loadedPath => {
+                const pathWithoutSlash = loadedPath.endsWith('/') ? loadedPath.slice(0, -1) : loadedPath;
+                
+                // Skip the deleted folder and any of its children
+                if (pathWithoutSlash !== deletedFolderPath && !pathWithoutSlash.startsWith(deletedFolderPath + '/')) {
+                  newLoadedFolders.add(loadedPath);
+                }
+              });
+              
+              set({ loadedFolders: newLoadedFolders });
+            }
+            
             await get().refreshCurrentFolder();
+            
+            // Emit event for deletion
+            if (key.endsWith('/')) {
+              await emitFolderDeleted(key);
+            } else {
+              await emitFileDeleted(key);
+            }
           } else {
             const error = await response.json();
             throw new Error(error.message || 'Failed to delete');
           }
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Failed to delete');
-        } finally {
-          get().setLoading(loadingKey, false);
-        }
+            } catch (error) {
+              throw error;
+            } finally {
+              get().setLoading(loadingKey, false);
+            }
+          },
+          onError: (error) => {
+            toast.error(error.message || 'Failed to delete');
+          }
+        });
       },
       
       renameObject: async (oldKey: string, newKey: string, isMove = false) => {
-        const loadingKey = `rename-${oldKey}`;
-        get().setLoading(loadingKey, true);
+        // Validate the new path
+        const isFolder = oldKey.endsWith('/');
+        const validation = validatePath(newKey, { isFolder });
         
-        try {
-          const response = await fetch('/api/r2/rename', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ oldKey, newKey })
-          });
+        if (!validation.isValid) {
+          validation.errors.forEach(error => toast.error(error));
+          return;
+        }
+        
+        // Check if move/rename is allowed
+        const moveCheck = canMoveOrRename(oldKey, newKey, isFolder);
+        if (!moveCheck.canMove) {
+          toast.error(moveCheck.reason || 'Cannot perform this operation');
+          return;
+        }
+        
+        // Normalize paths
+        const normalizedOldKey = normalizePath(oldKey, isFolder);
+        const normalizedNewKey = validation.normalizedPath || newKey;
+        
+        // Check for conflicting operations
+        if (hasConflictingOperation(normalizedOldKey, isMove ? 'move' : 'rename')) {
+          toast.error('Another operation is in progress for this item');
+          return;
+        }
+
+        const loadingKey = `rename-${oldKey}`;
+        
+        // Queue the operation to prevent race conditions
+        await fileOperationQueue.enqueue({
+          type: isMove ? 'move' : 'rename',
+          description: `${isMove ? 'Moving' : 'Renaming'} ${normalizedOldKey} to ${normalizedNewKey}`,
+          execute: async () => {
+            get().setLoading(loadingKey, true);
+            
+            try {
+          const response = await r2OperationWithRetry(
+            () => fetch('/api/r2/rename', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ oldKey: normalizedOldKey, newKey: normalizedNewKey })
+            }),
+            isMove ? 'Move operation' : 'Rename operation',
+            { maxAttempts: 2 }
+          );
           
           if (response.ok) {
             toast.success(isMove ? 'Moved successfully' : 'Renamed successfully');
             // Invalidate cache for source and destination folders
-            const sourceFolder = getParentPath(oldKey);
-            const destFolder = getParentPath(newKey);
+            const sourceFolder = getParentPath(normalizedOldKey);
+            const destFolder = getParentPath(normalizedNewKey);
             set(state => {
               const newLastFetched = new Map(state.lastFetched);
               newLastFetched.delete(sourceFolder);
@@ -295,10 +406,10 @@ export const useFileBrowserStore = create<FileBrowserState>()(
             const navigationStore = useNavigationStore.getState();
             
             // Handle folder renames that affect the current path and expanded folders
-            if (oldKey.endsWith('/')) {
+            if (normalizedOldKey.endsWith('/')) {
               // Remove trailing slash for comparison
-              const oldFolderPath = oldKey.slice(0, -1);
-              const newFolderPath = newKey.slice(0, -1);
+              const oldFolderPath = normalizedOldKey.slice(0, -1);
+              const newFolderPath = normalizedNewKey.slice(0, -1);
               
               // Check if current path includes the renamed folder
               if (currentPath === oldFolderPath || currentPath.startsWith(oldFolderPath + '/')) {
@@ -346,18 +457,64 @@ export const useFileBrowserStore = create<FileBrowserState>()(
                 expandedFolders: newExpandedFolders,
                 history: newHistory
               });
+              
+              // Update loadedFolders to reflect the renamed paths
+              const loadedFolders = get().loadedFolders;
+              const newLoadedFolders = new Set<string>();
+              
+              loadedFolders.forEach(loadedPath => {
+                // Handle the folder itself and its trailing slash variant
+                const pathWithoutSlash = loadedPath.endsWith('/') ? loadedPath.slice(0, -1) : loadedPath;
+                
+                if (pathWithoutSlash === oldFolderPath || pathWithoutSlash.startsWith(oldFolderPath + '/')) {
+                  // Update this loaded path
+                  const updatedPath = pathWithoutSlash === oldFolderPath
+                    ? newFolderPath
+                    : newFolderPath + pathWithoutSlash.substring(oldFolderPath.length);
+                  
+                  // Add both with and without trailing slash to match the original pattern
+                  if (loadedPath.endsWith('/')) {
+                    newLoadedFolders.add(updatedPath + '/');
+                  } else {
+                    newLoadedFolders.add(updatedPath);
+                  }
+                } else {
+                  // Keep unchanged paths
+                  newLoadedFolders.add(loadedPath);
+                }
+              });
+              
+              set({ loadedFolders: newLoadedFolders });
+            }
+            
+            // Add a small delay to ensure R2 has propagated the changes
+            // This is especially important for folder renames which involve multiple operations
+            if (normalizedOldKey.endsWith('/')) {
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
             
             await get().refreshCurrentFolder();
+            
+            // Emit event for rename/move
+            if (normalizedOldKey.endsWith('/')) {
+              await emitFolderRenamed(normalizedOldKey, normalizedNewKey);
+            } else {
+              await emitFileRenamed(normalizedOldKey, normalizedNewKey);
+            }
           } else {
             const error = await response.json();
             throw new Error(error.message || (isMove ? 'Failed to move' : 'Failed to rename'));
           }
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : (isMove ? 'Failed to move' : 'Failed to rename'));
-        } finally {
-          get().setLoading(loadingKey, false);
-        }
+            } catch (error) {
+              throw error;
+            } finally {
+              get().setLoading(loadingKey, false);
+            }
+          },
+          onError: (error) => {
+            toast.error(error.message || (isMove ? 'Failed to move' : 'Failed to rename'));
+          }
+        });
       },
       
       moveObject: async (oldKey: string, newKey: string) => {
@@ -366,29 +523,65 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       
       createFolder: async (name: string) => {
         const { currentPath, refreshCurrentFolder } = get();
-        const loadingKey = `create-folder-${name}`;
-        get().setLoading(loadingKey, true);
         
-        try {
+        // Validate folder name
+        const validation = validatePath(name, { isFolder: true, checkReserved: true });
+        if (!validation.isValid) {
+          validation.errors.forEach(error => toast.error(error));
+          return;
+        }
+        
+        // Normalize the folder name
+        const normalizedName = validation.normalizedPath?.split('/').pop() || name;
+        const folderPath = currentPath ? `${currentPath}/${normalizedName}` : normalizedName;
+        
+        // Check for conflicting operations
+        if (hasConflictingOperation(folderPath, 'create')) {
+          toast.error('Another operation is in progress');
+          return;
+        }
+
+        const loadingKey = `create-folder-${name}`;
+        
+        // Queue the operation
+        await fileOperationQueue.enqueue({
+          type: 'create',
+          description: `Creating folder ${name}`,
+          execute: async () => {
+            get().setLoading(loadingKey, true);
+            
+            try {
           const folderPath = currentPath ? `${currentPath}/${name}` : name;
-          const response = await fetch('/api/r2/create-folder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPath })
-          });
+          const response = await r2OperationWithRetry(
+            () => fetch('/api/r2/create-folder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ folderPath })
+            }),
+            'Create folder operation',
+            { maxAttempts: 2 }
+          );
           
           if (response.ok) {
             toast.success('Folder created successfully');
             await refreshCurrentFolder();
+            
+            // Emit event for folder creation
+            await emitFolderCreated(folderPath + '/');
           } else {
             const error = await response.json();
             throw new Error(error.message || 'Failed to create folder');
           }
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Failed to create folder');
-        } finally {
-          get().setLoading(loadingKey, false);
-        }
+            } catch (error) {
+              throw error;
+            } finally {
+              get().setLoading(loadingKey, false);
+            }
+          },
+          onError: (error) => {
+            toast.error(error.message || 'Failed to create folder');
+          }
+        });
       },
       
       // Navigation
@@ -590,7 +783,12 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         // If the dragged item is in selection, include all selected items
         const selectedKeys = selectedObjects.has(item.key) 
           ? Array.from(selectedObjects)
-          : undefined;
+          : [item.key];
+        
+        // Check if drag can start
+        if (!dragDropGuard.startDrag(selectedKeys)) {
+          return; // Guard will show appropriate message
+        }
         
         // Find all folders that can be drop targets
         const validTargets = new Set<string>();
@@ -658,15 +856,15 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         });
         
         set({ 
-          draggingItem: { ...item, selectedKeys },
+          draggingItem: { ...item, selectedKeys: selectedObjects.has(item.key) ? Array.from(selectedObjects) : undefined },
           validDropTargets: validTargets,
           currentDropTarget: null
         });
       },
       
       stopDragging: () => {
-        // Just clear the drag state
-        // The actual drop is handled by the drop event
+        // Clear drag state and notify guard
+        dragDropGuard.endDrag();
         set({ 
           draggingItem: null,
           currentDropTarget: null,
@@ -722,7 +920,17 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         const { draggingItem, moveObject, objects, currentPath, validDropTargets, canDrop } = get();
         if (!draggingItem) return;
         
-        // First check if drop is allowed
+        // Get items to move
+        const itemsToMove = draggingItem.selectedKeys || [draggingItem.key];
+        
+        // Use drag drop guard for validation
+        const guardCheck = dragDropGuard.canDrop(targetPath, itemsToMove);
+        if (!guardCheck.canDrop) {
+          toast.error(guardCheck.reason || 'Cannot move items to this location');
+          return;
+        }
+        
+        // Additional check with store's canDrop logic
         if (!canDrop(draggingItem, targetPath)) {
           toast.error('Cannot move items to this location');
           return;
@@ -748,11 +956,6 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         
         // Ensure target path ends with / for folder destinations
         const normalizedTargetPath = ensureFolderPath(targetPath);
-        
-        // Get items to move (either selected items or just the dragged item)
-        const itemsToMove = draggingItem.selectedKeys 
-          ? draggingItem.selectedKeys
-          : [draggingItem.key];
         
         // Filter out items that are already in the target location
         const validItemsToMove = itemsToMove.filter(key => {

@@ -16,6 +16,7 @@ import { FileTreeContextMenu } from './file-tree-context-menu';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useCommonFileOperations } from '@/lib/hooks/use-common-file-operations';
 import { toast } from 'sonner';
+import { fileEventBus } from '@/lib/utils/file-event-bus';
 
 interface R2FileTreeProps {
   currentPath: string;
@@ -73,9 +74,32 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     return root;
   }, [folderTree]);
 
-  // Load folder tree on mount
+  // Load folder tree on mount and subscribe to rename events
   useEffect(() => {
     loadFolderTree('');
+    
+    // Subscribe to folder rename events to refresh the tree
+    const unsubscribeFolderRenamed = fileEventBus.on('folder.renamed', async () => {
+      // Reload the entire folder tree to reflect the changes
+      await loadFolderTree('');
+    });
+    
+    const unsubscribeFolderCreated = fileEventBus.on('folder.created', async () => {
+      // Reload the tree when a new folder is created
+      await loadFolderTree('');
+    });
+    
+    const unsubscribeFolderDeleted = fileEventBus.on('folder.deleted', async () => {
+      // Reload the tree when a folder is deleted
+      await loadFolderTree('');
+    });
+    
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribeFolderRenamed();
+      unsubscribeFolderCreated();
+      unsubscribeFolderDeleted();
+    };
   }, [loadFolderTree]);
 
   const handleToggleFolder = useCallback(async (path: string) => {

@@ -11,6 +11,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { R2Object } from '@/lib/r2/operations';
+import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
+import { validatePath } from '@/lib/utils/path-validation';
 
 interface RenameDialogProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ export function RenameDialog({
 }: RenameDialogProps) {
   const [newName, setNewName] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const { renameObject } = useFileBrowserStore();
 
   useEffect(() => {
     if (isOpen && object) {
@@ -44,45 +47,52 @@ export function RenameDialog({
       return;
     }
 
-    // Validate name
-    if (newName.includes('/') || newName.includes('\\')) {
-      toast.error('Name cannot contain slashes');
+    // Validate the name using path validation utilities
+    const validation = validatePath(newName, { 
+      isFolder: object.isFolder,
+      checkReserved: true,
+      strictMode: false 
+    });
+    
+    if (!validation.isValid) {
+      // Show the first error
+      toast.error(validation.errors[0]);
       return;
     }
+    
+    // Show warnings if any
+    validation.warnings.forEach(warning => {
+      console.warn('Rename warning:', warning);
+    });
 
     setRenaming(true);
     
     try {
+      // Use the sanitized name if available
+      const finalName = validation.normalizedPath?.split('/').pop() || newName;
+      
       // Build new key
       const pathParts = object.key.split('/');
-      pathParts[pathParts.length - (object.isFolder ? 2 : 1)] = newName;
+      pathParts[pathParts.length - (object.isFolder ? 2 : 1)] = finalName;
       
       let newKey = pathParts.join('/');
       if (object.isFolder && !newKey.endsWith('/')) {
         newKey += '/';
       }
 
-      const response = await fetch('/api/r2/rename', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          oldKey: object.key, 
-          newKey 
-        }),
-      });
-
-      if (response.ok) {
-        toast.success(`${object.isFolder ? 'Folder' : 'File'} renamed successfully`);
+      // Use the store's renameObject method which handles path updates
+      await renameObject(object.key, newKey);
+      
+      // The store method already shows success toast, so we just close
+      onClose();
+      
+      // Call onRenamed callback if provided (for backward compatibility)
+      if (onRenamed) {
         onRenamed();
-        onClose();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to rename');
       }
-    } catch {
-      toast.error('Error renaming item');
+    } catch (error) {
+      // Error is already handled by the store method
+      console.error('Rename error:', error);
     } finally {
       setRenaming(false);
     }

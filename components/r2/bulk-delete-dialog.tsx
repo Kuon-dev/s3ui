@@ -7,8 +7,10 @@ import {
   DialogContent,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { AlertTriangle, Files, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, Files, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
+import { batchDelete } from '@/lib/utils/batch-operations';
 
 interface BulkDeleteDialogProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ export function BulkDeleteDialog({
 }: BulkDeleteDialogProps) {
   const [deleting, setDeleting] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const { deleteObject, refreshCurrentFolder } = useFileBrowserStore();
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -32,54 +35,48 @@ export function BulkDeleteDialog({
     setProgress({ current: 0, total: count });
     
     try {
-      let successCount = 0;
-      const errors: string[] = [];
-      let current = 0;
-
-      // Delete all selected items
-      for (const key of selectedKeys) {
-        try {
-          const response = await fetch(`/api/r2/delete?key=${encodeURIComponent(key)}`, {
-            method: 'DELETE',
-          });
-          
-          if (response.ok) {
-            successCount++;
-          } else {
-            const data = await response.json();
-            const fileName = key.split('/').pop() || key;
-            errors.push(`${fileName}: ${data.error || 'Failed'}`);
-          }
-        } catch {
-          const fileName = key.split('/').pop() || key;
-          errors.push(`${fileName}: Network error`);
-        }
-        
-        current++;
-        setProgress({ current, total: count });
-      }
+      // Use batch delete for atomic operations
+      const result = await batchDelete(
+        Array.from(selectedKeys),
+        deleteObject,
+        (current, total) => setProgress({ current, total })
+      );
       
-      if (errors.length === 0) {
+      if (result.success) {
         toast.success(
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
-            <span>Successfully deleted {successCount} {successCount === 1 ? 'item' : 'items'}</span>
+            <span>Successfully deleted {count} {count === 1 ? 'item' : 'items'}</span>
           </div>
         );
-        onDeleted();
         onClose();
+        if (onDeleted) {
+          onDeleted();
+        }
       } else {
-        toast.error(
-          <div className="flex items-center gap-2">
-            <XCircle className="h-4 w-4" />
-            <span>Deleted {successCount} items, but {errors.length} failed</span>
-          </div>
-        );
-        // Still call onDeleted to refresh the list for partial success
-        onDeleted();
+        const successCount = result.successfulOperations.length;
+        const failCount = result.failedOperations.length;
+        
+        if (successCount > 0) {
+          toast.warning(
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Deleted {successCount} items, but {failCount} failed</span>
+            </div>
+          );
+          // Refresh to ensure UI is in sync
+          await refreshCurrentFolder();
+        } else {
+          toast.error('Failed to delete items');
+        }
+        
+        if (onDeleted) {
+          onDeleted();
+        }
       }
-    } catch {
+    } catch (error) {
       toast.error('Error during bulk delete operation');
+      console.error('Bulk delete error:', error);
     } finally {
       setDeleting(false);
       setProgress({ current: 0, total: 0 });

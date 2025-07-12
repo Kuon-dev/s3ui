@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { FolderTreeNode } from '@/lib/r2/operations';
+import { fileEventBus } from '@/lib/utils/file-event-bus';
+import { broadcastFolderExpansion } from '@/lib/utils/cross-tab-sync';
 
 /**
  * Navigation Store
@@ -43,6 +45,91 @@ export interface NavigationState {
   // Breadcrumb management
   updateBreadcrumbs: () => void;
   getBreadcrumbPath: (index: number) => string;
+}
+
+// Set up event listeners
+let eventListenersSetup = false;
+
+function setupEventListeners() {
+  if (eventListenersSetup) return;
+  eventListenersSetup = true;
+
+  // Listen for folder rename events
+  fileEventBus.on('folder.renamed', (event) => {
+    const { oldPath, newPath } = event.payload;
+    if (!oldPath || !newPath) return;
+
+    const store = useNavigationStore.getState();
+    const { currentPath, expandedFolders, history, navigateToPath } = store;
+
+    // Remove trailing slashes for comparison
+    const oldFolderPath = oldPath.endsWith('/') ? oldPath.slice(0, -1) : oldPath;
+    const newFolderPath = newPath.endsWith('/') ? newPath.slice(0, -1) : newPath;
+
+    // Update current path if affected
+    if (currentPath === oldFolderPath || currentPath.startsWith(oldFolderPath + '/')) {
+      const updatedPath = currentPath === oldFolderPath
+        ? newFolderPath
+        : newFolderPath + currentPath.substring(oldFolderPath.length);
+      navigateToPath(updatedPath, false);
+    }
+
+    // Update expanded folders
+    const newExpandedFolders = new Set<string>();
+    expandedFolders.forEach(expandedPath => {
+      if (expandedPath === oldFolderPath || expandedPath.startsWith(oldFolderPath + '/')) {
+        const updatedPath = expandedPath === oldFolderPath
+          ? newFolderPath
+          : newFolderPath + expandedPath.substring(oldFolderPath.length);
+        newExpandedFolders.add(updatedPath);
+      } else {
+        newExpandedFolders.add(expandedPath);
+      }
+    });
+
+    // Update history
+    const newHistory = history.map(historyPath => {
+      if (historyPath === oldFolderPath || historyPath.startsWith(oldFolderPath + '/')) {
+        return historyPath === oldFolderPath
+          ? newFolderPath
+          : newFolderPath + historyPath.substring(oldFolderPath.length);
+      }
+      return historyPath;
+    });
+
+    useNavigationStore.setState({
+      expandedFolders: newExpandedFolders,
+      history: newHistory
+    });
+  });
+
+  // Listen for folder deletion events
+  fileEventBus.on('folder.deleted', (event) => {
+    const { path } = event.payload;
+    if (!path) return;
+
+    const store = useNavigationStore.getState();
+    const { currentPath, expandedFolders, navigateToPath } = store;
+    const deletedFolderPath = path.endsWith('/') ? path.slice(0, -1) : path;
+
+    // Navigate to parent if current path is deleted
+    if (currentPath === deletedFolderPath || currentPath.startsWith(deletedFolderPath + '/')) {
+      const parentPath = deletedFolderPath.includes('/')
+        ? deletedFolderPath.substring(0, deletedFolderPath.lastIndexOf('/'))
+        : '';
+      navigateToPath(parentPath);
+    }
+
+    // Remove deleted folder and its children from expanded folders
+    const newExpandedFolders = new Set<string>();
+    expandedFolders.forEach(expandedPath => {
+      if (expandedPath !== deletedFolderPath && !expandedPath.startsWith(deletedFolderPath + '/')) {
+        newExpandedFolders.add(expandedPath);
+      }
+    });
+
+    useNavigationStore.setState({ expandedFolders: newExpandedFolders });
+  });
 }
 
 export const useNavigationStore = create<NavigationState>()(
@@ -142,6 +229,9 @@ export const useNavigationStore = create<NavigationState>()(
               newExpanded.delete(expandedPath);
             }
           });
+          
+          // Broadcast collapse change to other tabs
+          broadcastFolderExpansion(newExpanded);
           
           return { expandedFolders: newExpanded };
         });
@@ -338,6 +428,9 @@ export const useNavigationStore = create<NavigationState>()(
     }
   )
 );
+
+// Initialize event listeners when store is created
+setupEventListeners();
 
 // Selectors
 export const useCurrentPath = () => 

@@ -78,6 +78,7 @@ import { UploadDialog } from './upload-dialog';
 import { TooltipWrapper as Tooltip } from '@/components/ui/tooltip-wrapper';
 import { getParentPath } from '@/lib/utils/path';
 import { cn } from '@/lib/utils';
+import { fileEventBus } from '@/lib/utils/file-event-bus';
 
 interface FileBrowserProps {
   initialPath?: string;
@@ -113,7 +114,8 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     hasItems: hasClipboardItems,
     canPaste,
     items: clipboardItems,
-    operation: clipboardOperation
+    operation: clipboardOperation,
+    copy: copyToClipboard
   } = useClipboardStore();
   
   const { 
@@ -149,6 +151,104 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   useEffect(() => {
     setSelectedItems(new Set());
   }, [currentPath]);
+
+  // Subscribe to file system events to update UI when files/folders are renamed
+  useEffect(() => {
+    // Handler for file rename events
+    const handleFileRenamed = async (event: any) => {
+      const { oldPath, newPath } = event.payload;
+      
+      // Check if the renamed file is in the current folder
+      const oldParent = getParentPath(oldPath);
+      const newParent = getParentPath(newPath);
+      
+      // Refresh if the file was renamed in the current folder or moved to/from it
+      if (oldParent === currentPath || newParent === currentPath) {
+        await refreshCurrentFolder();
+      }
+    };
+
+    // Handler for folder rename events
+    const handleFolderRenamed = async (event: any) => {
+      const { oldPath, newPath } = event.payload;
+      
+      // Remove trailing slashes for comparison
+      const oldFolderPath = oldPath.endsWith('/') ? oldPath.slice(0, -1) : oldPath;
+      const newFolderPath = newPath.endsWith('/') ? newPath.slice(0, -1) : newPath;
+      
+      // Check if current path is affected by the folder rename
+      if (currentPath === oldFolderPath || currentPath.startsWith(oldFolderPath + '/')) {
+        // Current path is the renamed folder or inside it - navigate to new path
+        const newCurrentPath = currentPath === oldFolderPath 
+          ? newFolderPath 
+          : newFolderPath + currentPath.substring(oldFolderPath.length);
+        
+        await navigateToFolder(newCurrentPath);
+      } else {
+        // Check if the renamed folder is in the current folder
+        const oldParent = getParentPath(oldFolderPath);
+        const newParent = getParentPath(newFolderPath);
+        
+        if (oldParent === currentPath || newParent === currentPath) {
+          await refreshCurrentFolder();
+        }
+      }
+    };
+
+    // Subscribe to events
+    const unsubscribeFileRenamed = fileEventBus.on('file.renamed', handleFileRenamed);
+    const unsubscribeFolderRenamed = fileEventBus.on('folder.renamed', handleFolderRenamed);
+    
+    // Also subscribe to file/folder creation and deletion events
+    const handleFileCreated = async (event: any) => {
+      const filePath = event.payload.path;
+      const parent = getParentPath(filePath);
+      if (parent === currentPath) {
+        await refreshCurrentFolder();
+      }
+    };
+    
+    const handleFileDeleted = async (event: any) => {
+      const filePath = event.payload.path;
+      const parent = getParentPath(filePath);
+      if (parent === currentPath) {
+        await refreshCurrentFolder();
+      }
+    };
+    
+    const handleFolderCreated = async (event: any) => {
+      const folderPath = event.payload.path;
+      const folderWithoutSlash = folderPath.endsWith('/') ? folderPath.slice(0, -1) : folderPath;
+      const parent = getParentPath(folderWithoutSlash);
+      if (parent === currentPath) {
+        await refreshCurrentFolder();
+      }
+    };
+    
+    const handleFolderDeleted = async (event: any) => {
+      const folderPath = event.payload.path;
+      const folderWithoutSlash = folderPath.endsWith('/') ? folderPath.slice(0, -1) : folderPath;
+      const parent = getParentPath(folderWithoutSlash);
+      if (parent === currentPath) {
+        await refreshCurrentFolder();
+      }
+    };
+    
+    const unsubscribeFileCreated = fileEventBus.on('file.created', handleFileCreated);
+    const unsubscribeFileDeleted = fileEventBus.on('file.deleted', handleFileDeleted);
+    const unsubscribeFolderCreated = fileEventBus.on('folder.created', handleFolderCreated);
+    const unsubscribeFolderDeleted = fileEventBus.on('folder.deleted', handleFolderDeleted);
+    
+    // Cleanup subscriptions on unmount or when currentPath changes
+    return () => {
+      unsubscribeFileRenamed();
+      unsubscribeFolderRenamed();
+      unsubscribeFileCreated();
+      unsubscribeFileDeleted();
+      unsubscribeFolderCreated();
+      unsubscribeFolderDeleted();
+    };
+  }, [currentPath, navigateToFolder, refreshCurrentFolder]);
 
   const handleCopy = useCallback((object: R2Object) => {
     handleCopyCommon(object, currentPath);
@@ -254,6 +354,21 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     return sorted;
   }, [filteredObjects, sortBy, sortOrder]);
 
+  const handleBulkCopy = useCallback(() => {
+    if (selectedItems.size === 0) return;
+    
+    const itemsToCopy = sortedObjects
+      .filter(obj => selectedItems.has(obj.key))
+      .map(obj => ({
+        key: obj.key,
+        name: obj.key.split('/').pop() || obj.key,
+        isFolder: obj.isFolder
+      }));
+    
+    copyToClipboard(itemsToCopy, currentPath);
+    toast.success(`Copied ${itemsToCopy.length} item${itemsToCopy.length > 1 ? 's' : ''} to clipboard`);
+  }, [selectedItems, sortedObjects, copyToClipboard, currentPath]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -264,9 +379,15 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       }
       
       // Copy (Ctrl/Cmd + C)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'c' && selectedObject) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
         e.preventDefault();
-        handleCopy(selectedObject);
+        if (selectedItems.size > 0) {
+          // Copy multiple selected items
+          handleBulkCopy();
+        } else if (selectedObject) {
+          // Fall back to single item copy
+          handleCopy(selectedObject);
+        }
       }
       
       // Paste (Ctrl/Cmd + V)
@@ -300,7 +421,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObject, hasClipboardItems, currentPath, canPaste, handleCopy, handlePaste, setShowGlobalSearch, selectedItems, sortedObjects, refreshCurrentFolder]);
+  }, [selectedObject, hasClipboardItems, currentPath, canPaste, handleCopy, handleBulkCopy, handlePaste, setShowGlobalSearch, selectedItems, sortedObjects, refreshCurrentFolder]);
 
   const getBreadcrumbs = () => {
     if (!currentPath) return [];

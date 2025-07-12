@@ -6,10 +6,10 @@ import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
 import { R2Object } from '@/lib/r2/operations';
 import { AlertTriangle, Folder, File, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 
 interface DeleteDialogProps {
   isOpen: boolean;
@@ -25,25 +25,25 @@ export function DeleteDialog({
   onDeleted,
 }: DeleteDialogProps) {
   const [deleting, setDeleting] = useState(false);
+  const { deleteObject } = useFileBrowserStore();
 
   const handleDelete = async () => {
     setDeleting(true);
     
     try {
-      const response = await fetch(`/api/r2/delete?key=${encodeURIComponent(object.key)}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        toast.success(`${object.isFolder ? 'Folder' : 'File'} deleted successfully`);
+      // Use the store's deleteObject method which handles tree updates
+      await deleteObject(object.key);
+      
+      // The store method already shows success toast, so we just close
+      onClose();
+      
+      // Call onDeleted callback if provided (for backward compatibility)
+      if (onDeleted) {
         onDeleted();
-        onClose();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to delete');
       }
-    } catch {
-      toast.error('Error deleting item');
+    } catch (error) {
+      // Error is already handled by the store method
+      console.error('Delete error:', error);
     } finally {
       setDeleting(false);
     }

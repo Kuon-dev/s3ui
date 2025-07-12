@@ -1,3 +1,5 @@
+import { validatePath, sanitizeName } from '@/lib/utils/path-validation';
+
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 export const MAX_FILES_PER_UPLOAD = 50;
 export const ALLOWED_FILE_TYPES = [
@@ -167,47 +169,22 @@ export function isAudioFile(filename: string): boolean {
   return ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext);
 }
 
+// Use sanitizeName from path-validation for consistency
 export function sanitizePath(path: string): string {
-  return path
-    .replace(/[<>:"/\\|?*]/g, '')
-    .replace(/\.\./g, '')
-    .replace(/^\/+|\/+$/g, '')
-    .replace(/\/+/g, '/');
+  return sanitizeName(path);
 }
 
 export function validateFolderName(name: string): FileValidationResult {
-  const errors: string[] = [];
+  const validation = validatePath(name, {
+    isFolder: true,
+    checkReserved: true,
+    strictMode: true
+  });
 
-  // Check for empty name
-  if (!name.trim()) {
-    errors.push('Folder name cannot be empty.');
-  }
-
-  // Check for invalid characters
-  const invalidChars = /[<>:"/\\|?*]/;
-  if (invalidChars.test(name)) {
-    errors.push('Folder name contains invalid characters.');
-  }
-
-  // Check length
-  if (name.length > 255) {
-    errors.push('Folder name is too long (maximum 255 characters).');
-  }
-
-  // Check for reserved names
-  const reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
-  if (reservedNames.includes(name.toUpperCase())) {
-    errors.push('Folder name is reserved and cannot be used.');
-  }
-
-  // Check for hidden folders
-  if (name.startsWith('.')) {
-    errors.push('Hidden folders are not allowed.');
-  }
-
+  // Map validation result to FileValidationResult format
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: validation.isValid,
+    errors: validation.errors
   };
 }
 

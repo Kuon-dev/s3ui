@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { validateFolderName } from '@/lib/utils/file-utils';
+import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 
 interface CreateFolderDialogProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function CreateFolderDialog({
 }: CreateFolderDialogProps) {
   const [folderName, setFolderName] = useState('');
   const [creating, setCreating] = useState(false);
+  const { createFolder } = useFileBrowserStore();
 
   const handleCreate = async () => {
     const validation = validateFolderName(folderName);
@@ -39,29 +41,20 @@ export function CreateFolderDialog({
     setCreating(true);
     
     try {
-      const folderPath = currentPath 
-        ? `${currentPath}/${folderName}`
-        : folderName;
-
-      const response = await fetch('/api/r2/create-folder', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ folderPath }),
-      });
-
-      if (response.ok) {
-        toast.success('Folder created successfully');
-        setFolderName('');
+      // Use the store's createFolder method which handles path updates
+      await createFolder(folderName);
+      
+      // The store method already shows success toast, so we just close
+      setFolderName('');
+      onClose();
+      
+      // Call onFolderCreated callback if provided (for backward compatibility)
+      if (onFolderCreated) {
         onFolderCreated();
-        onClose();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to create folder');
       }
-    } catch {
-      toast.error('Error creating folder');
+    } catch (error) {
+      // Error is already handled by the store method
+      console.error('Create folder error:', error);
     } finally {
       setCreating(false);
     }
