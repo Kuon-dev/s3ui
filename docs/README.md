@@ -30,8 +30,8 @@ This documentation provides comprehensive technical information about the Cloudf
 - **Standalone output** optimization for deployment
 
 #### State Management & Data
-- **Zustand** with persistence middleware for state management
-- **TanStack Query** for advanced data fetching (ready for migration)
+- **Modular Zustand stores** - 6 specialized stores for clean separation
+- **Clipboard operations** - Cut/copy/paste with conflict resolution
 - **60-second object caching** with LRU eviction
 - **Request deduplication** for optimal performance
 
@@ -39,12 +39,14 @@ This documentation provides comprehensive technical information about the Cloudf
 - **Windows Explorer-style Interface** with dual-pane layout
 - **Advanced Theme System** - 12 pre-built themes with runtime switching
 - **Enhanced Drag & Drop** - Multi-item support with visual feedback
+- **Unified Context Menu** - Consistent operations across tree and table views
 - **Global Search** with command palette (⌘K/Ctrl+K) and debouncing
-- **Real-time File Operations** - upload, download, create, rename, delete, copy
+- **Enhanced File Operations** - cut/copy/paste, bulk delete, move operations
 - **Folder Tree Navigation** with lazy loading and caching
 - **File Preview Dialog** for various file types
 - **Floating Action Buttons** for mobile-friendly interface
 - **Glassmorphism UI** with modern visual effects
+- **Keyboard Shortcuts** - Del (delete), F2 (rename), ⌘C/⌘X/⌘V (copy/cut/paste)
 
 ### 🔧 Technical Improvements
 
@@ -122,13 +124,14 @@ Advanced command palette with CMDK:
 - Results limited to 50 items for performance
 - Search history and suggestions
 
-#### File Browser Store (`lib/stores/file-browser-store.ts`)
-Zustand-based state management:
-- Object caching with 60-second timeout
-- Folder tree state with expansion tracking
-- Drag & drop state management
-- Clipboard operations
-- Dialog state management
+#### Modular State Management (`lib/stores/`)
+6 specialized Zustand stores for clean architecture:
+- **file-system-store** - R2 objects and folder tree
+- **navigation-store** - Path navigation and folder expansion
+- **selection-store** - Multi-select operations
+- **drag-drop-store** - Drag and drop state
+- **ui-state-store** - UI preferences, dialogs, search
+- **clipboard-store** - Cut/copy/paste operations
 
 #### Theme System (`lib/stores/theme-store.ts`)
 Advanced theming with 12 pre-built themes:
@@ -224,6 +227,7 @@ interface ApiResponse<T> {
 
 #### New API Endpoints
 - `/api/r2/copy` - Copy files and folders
+- `/api/r2/move` - Move files and folders with conflict resolution
 - `/api/r2/preview` - Generate file previews
 - `/api/r2/stats` - Get storage statistics
 

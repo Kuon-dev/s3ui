@@ -75,6 +75,17 @@ The application follows a modern React-based architecture with server-side API r
 
 ### 1. State Management Layer (`lib/stores/`)
 
+The application uses a modular state management architecture with specialized Zustand stores:
+
+#### Core Stores
+
+- **`file-system-store.ts`**: R2 objects and folder tree management
+- **`navigation-store.ts`**: Path navigation and folder expansion state
+- **`selection-store.ts`**: Multi-select operations and keyboard shortcuts
+- **`drag-drop-store.ts`**: Drag and drop state management
+- **`ui-state-store.ts`**: UI preferences, dialogs, and search
+- **`clipboard-store.ts`**: Cut/copy/paste operations
+
 #### File Browser Store (`lib/stores/file-browser-store.ts`)
 Zustand-based central state management:
 
@@ -181,8 +192,10 @@ export function FileBrowser() {
 - **Integrated Store**: Zustand state management
 - **Utility Header**: Quick actions and navigation
 - **Enhanced Drag & Drop**: Multi-file support with visual feedback
-- **Keyboard Shortcuts**: Delete, Rename, Copy/Paste
+- **Keyboard Shortcuts**: Delete (Del), Rename (F2), Copy/Paste (⌘C/⌘V)
 - **Empty States**: User-friendly empty folder messages
+- **Bulk Operations**: Multi-select with bulk delete dialog
+- **Context Menus**: Unified context menu for consistent operations
 
 ### 4. Global Search Component (`components/r2/global-search-enhanced.tsx`)
 
@@ -217,7 +230,60 @@ export function GlobalSearchEnhanced() {
 - **Result Limiting**: 50 items max for performance
 - **Search History**: Recent searches saved
 
-### 5. Service Worker (`public/upload-sw.js`)
+### 5. Common File Operations Hook (`lib/hooks/use-common-file-operations.ts`)
+
+Shared file operations for consistent behavior across components:
+
+```typescript
+export function useCommonFileOperations() {
+  // Clipboard operations
+  handleCopy(object, sourcePath)
+  handleCut(object, sourcePath)
+  
+  // File operations  
+  handleRename(object)
+  handleDelete(object)
+  handlePreview(object)
+  handleDownload(object)
+  
+  // Utility operations
+  handleCopyUrl(object)
+  handleCopyPath(path)
+}
+```
+
+**Features:**
+- **Unified Operations**: Consistent behavior across file tree and table
+- **Toast Notifications**: User feedback for all operations
+- **Type Safety**: Works with both R2Object and simplified objects
+- **Clipboard Integration**: Cut/copy operations with visual feedback
+
+### 6. Unified Context Menu (`components/r2/unified-context-menu.tsx`)
+
+Consistent context menu for all file operations:
+
+```typescript
+export function UnifiedContextMenu({
+  object,
+  currentPath,
+  context: 'file-tree' | 'table',
+  // Context-specific callbacks
+  onNavigate,
+  onCreateFolder,
+  onRefresh,
+  onExpandAll,
+  onCollapseAll
+})
+```
+
+**Features:**
+- **Context-Aware**: Different options for file tree vs table
+- **Keyboard Shortcuts**: Visual hints for all operations
+- **Clipboard Status**: Shows paste availability and item count
+- **Hierarchical Actions**: Primary, edit, view, and utility sections
+- **Icon Consistency**: Lucide icons throughout
+
+### 7. Service Worker (`public/upload-sw.js`)
 
 Enhanced upload management system:
 
@@ -270,6 +336,7 @@ interface ApiResponse<T> {
 | `/api/r2/delete` | DELETE | Delete object | `key` (recursive for folders) |
 | `/api/r2/rename` | PUT | Rename object | `oldKey`, `newKey` |
 | `/api/r2/copy` | POST | Copy object | `sourceKey`, `destKey` |
+| `/api/r2/move` | POST | Move object | `sourcePath`, `destinationPath`, `isFolder` |
 | `/api/r2/folder-tree` | GET | Get folder tree | `prefix` |
 | `/api/r2/search` | GET | Search files | `q` (query) |
 | `/api/r2/preview` | GET | File preview | `key` |

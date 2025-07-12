@@ -365,6 +365,41 @@ fetch('/api/r2/copy', {
 });
 ```
 
+### Move Object
+
+Moves a file or folder to a new location (cut/paste operation).
+
+**Endpoint:** `POST /api/r2/move`
+
+**Request Body:**
+```typescript
+{
+  sourcePath: string;      // Source object path
+  destinationPath: string; // Destination folder path
+  isFolder: boolean;       // Whether the source is a folder
+}
+```
+
+**Response:**
+```typescript
+{
+  success: true
+}
+```
+
+**Example:**
+```javascript
+fetch('/api/r2/move', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    sourcePath: 'documents/file.pdf',
+    destinationPath: 'archive',
+    isFolder: false
+  })
+});
+```
+
 ### File Preview
 
 Generates a preview for supported file types.
@@ -497,6 +532,29 @@ interface FileBrowserStore {
 }
 ```
 
+#### ClipboardStore
+```typescript
+interface ClipboardStore {
+  // State
+  items: ClipboardItem[]
+  operation: 'copy' | 'cut' | null
+  sourcePath: string
+  
+  // Actions
+  copy: (items: ClipboardItem[], sourcePath: string) => void
+  cut: (items: ClipboardItem[], sourcePath: string) => void
+  clear: () => void
+  hasItems: () => boolean
+  canPaste: (targetPath: string) => boolean
+}
+
+interface ClipboardItem {
+  key: string
+  name: string
+  isFolder: boolean
+}
+```
+
 #### ThemeStore
 ```typescript
 interface ThemeStore {
@@ -566,6 +624,30 @@ async function copyMultipleFiles(files: string[], destPath: string) {
     })
   );
   await Promise.all(promises);
+}
+
+// Move files using clipboard operations
+import { useClipboardStore } from '@/lib/stores/clipboard-store';
+import { useFileOperations } from '@/lib/hooks/use-file-operations';
+
+function FileManager() {
+  const { cut, paste } = useClipboardStore();
+  const { paste: executePaste } = useFileOperations();
+  
+  // Cut files
+  const handleCut = (selectedFiles: R2Object[]) => {
+    const items = selectedFiles.map(f => ({
+      key: f.key,
+      name: f.key.split('/').pop() || f.key,
+      isFolder: f.isFolder
+    }));
+    cut(items, currentPath);
+  };
+  
+  // Paste files
+  const handlePaste = async () => {
+    await executePaste(currentPath);
+  };
 }
 
 // Get storage statistics
