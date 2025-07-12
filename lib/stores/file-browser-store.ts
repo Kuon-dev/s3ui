@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { R2Object, FolderTreeNode } from '@/lib/r2/operations';
 import { toast } from 'sonner';
 import { ensureFolderPath, stripTrailingSlash, getParentPath } from '@/lib/utils/path';
+import { useNavigationStore } from './navigation-store';
 
 interface ClipboardItem {
   path: string;
@@ -288,6 +289,65 @@ export const useFileBrowserStore = create<FileBrowserState>()(
               }
               return { lastFetched: newLastFetched };
             });
+            
+            // Check if renamed folder affects current navigation path
+            const currentPath = get().currentPath;
+            const navigationStore = useNavigationStore.getState();
+            
+            // Handle folder renames that affect the current path and expanded folders
+            if (oldKey.endsWith('/')) {
+              // Remove trailing slash for comparison
+              const oldFolderPath = oldKey.slice(0, -1);
+              const newFolderPath = newKey.slice(0, -1);
+              
+              // Check if current path includes the renamed folder
+              if (currentPath === oldFolderPath || currentPath.startsWith(oldFolderPath + '/')) {
+                // Calculate the new path
+                const newPath = currentPath === oldFolderPath 
+                  ? newFolderPath 
+                  : newFolderPath + currentPath.substring(oldFolderPath.length);
+                
+                // Update navigation to the new path
+                navigationStore.navigateToPath(newPath);
+                // Update the local currentPath as well
+                set({ currentPath: newPath });
+              }
+              
+              // Update expanded folders state
+              const expandedFolders = navigationStore.expandedFolders;
+              const newExpandedFolders = new Set<string>();
+              
+              expandedFolders.forEach(expandedPath => {
+                if (expandedPath === oldFolderPath || expandedPath.startsWith(oldFolderPath + '/')) {
+                  // Update this expanded path
+                  const updatedPath = expandedPath === oldFolderPath
+                    ? newFolderPath
+                    : newFolderPath + expandedPath.substring(oldFolderPath.length);
+                  newExpandedFolders.add(updatedPath);
+                } else {
+                  // Keep unchanged paths
+                  newExpandedFolders.add(expandedPath);
+                }
+              });
+              
+              // Update history to reflect renamed paths
+              const history = navigationStore.history;
+              const newHistory = history.map(historyPath => {
+                if (historyPath === oldFolderPath || historyPath.startsWith(oldFolderPath + '/')) {
+                  return historyPath === oldFolderPath
+                    ? newFolderPath
+                    : newFolderPath + historyPath.substring(oldFolderPath.length);
+                }
+                return historyPath;
+              });
+              
+              // Update the navigation store state
+              useNavigationStore.setState({ 
+                expandedFolders: newExpandedFolders,
+                history: newHistory
+              });
+            }
+            
             await get().refreshCurrentFolder();
           } else {
             const error = await response.json();
