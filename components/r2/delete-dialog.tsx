@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { R2Object } from '@/lib/r2/operations';
+import { AlertTriangle, Folder, File, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface DeleteDialogProps {
   isOpen: boolean;
@@ -62,41 +62,89 @@ export function DeleteDialog({
       : object.key.split('/').pop() || '';
   };
 
+  const itemName = getItemName();
+  const Icon = object?.isFolder ? Folder : File;
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            Delete {object?.isFolder ? 'Folder' : 'File'}
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-4">
-          <p className="text-sm">
-            Are you sure you want to delete &ldquo;{getItemName()}&rdquo;?
-            {object?.isFolder && (
-              <span className="block mt-1 text-destructive font-medium">
-                This will also delete all files and folders inside it.
-              </span>
-            )}
-          </p>
-          
-          <p className="text-xs text-muted-foreground">
-            This action cannot be undone.
+      <DialogContent className="max-w-[440px] p-0 gap-0 overflow-hidden">
+        {/* Header with icon */}
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+            </div>
+            <div className="flex-1 pt-1">
+              <h2 className="text-lg font-semibold text-foreground">
+                Delete {object?.isFolder ? 'folder' : 'file'}?
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                This action cannot be undone
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 pb-6">
+          {/* Item being deleted */}
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <Icon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <span className="text-sm font-medium truncate">{itemName}</span>
+            </div>
+          </div>
+
+          {/* Warning for folders */}
+          {object?.isFolder && (
+            <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-4 mb-4">
+              <p className="text-sm text-destructive flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  All files and subfolders inside <strong className="font-semibold">{itemName}</strong> will be permanently deleted.
+                </span>
+              </p>
+            </div>
+          )}
+
+          {/* Additional info */}
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {object?.isFolder 
+              ? 'This will permanently remove the folder and all of its contents from your storage.' 
+              : 'This file will be permanently removed from your storage.'}
           </p>
         </div>
 
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button variant="outline" onClick={handleClose} disabled={deleting}>
-            Cancel
-          </Button>
-          <Button 
-            variant="destructive"
-            onClick={handleDelete} 
-            disabled={deleting}
-          >
-            {deleting ? 'Deleting...' : 'Delete'}
-          </Button>
+        {/* Footer with actions - separated with border */}
+        <div className="border-t border-border/50 bg-muted/20 px-6 py-4">
+          <div className="flex items-center justify-end gap-3">
+            <Button 
+              variant="ghost" 
+              onClick={handleClose} 
+              disabled={deleting}
+              className="min-w-[80px]"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDelete} 
+              disabled={deleting}
+              className={cn(
+                "min-w-[80px] gap-2",
+                deleting && "bg-destructive/80"
+              )}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Deleting</span>
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

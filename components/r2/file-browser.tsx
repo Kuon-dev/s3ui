@@ -14,10 +14,9 @@ import {
   Eye,
   Search,
   Copy,
-  Info,
-  FolderOpen,
   Clipboard,
   ClipboardPaste,
+  Scissors,
   SortAsc,
   SortDesc,
   ArrowUpDown,
@@ -36,12 +35,11 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu';
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { FileDropZone } from './file-drop-zone';
@@ -53,13 +51,25 @@ import { uploadManager } from '@/lib/service-worker/upload-manager';
 import { CreateFolderDialog } from './create-folder-dialog';
 import { RenameDialog } from './rename-dialog';
 import { DeleteDialog } from './delete-dialog';
+import { BulkDeleteDialog } from './bulk-delete-dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { UnifiedContextMenu } from './unified-context-menu';
+import { useCommonFileOperations } from '@/lib/hooks/use-common-file-operations';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { ResizablePanels } from '@/components/ui/resizable';
 import { GlobalSearch } from './global-search';
 import { FilePreviewDialog } from './file-preview-dialog';
 import { getFileIcon, getFileType } from '@/lib/utils/file-types';
 import { useFileBrowserStore, useFilteredObjects, useIsLoading, type DragItem } from '@/lib/stores/file-browser-store';
+import { useClipboardStore } from '@/lib/stores/clipboard-store';
+import { useFileOperations } from '@/lib/hooks/use-file-operations';
 import { motion, AnimatePresence } from 'motion/react';
 import { springPresets } from '@/lib/animations';
 import { EmptyState } from './empty-state';
@@ -78,7 +88,6 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     currentPath,
     searchQuery,
     selectedObject,
-    clipboardItem,
     showUploadDialog,
     showCreateFolderDialog,
     showRenameDialog,
@@ -98,10 +107,22 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     loadObjects,
     refreshCurrentFolder,
     renameObject,
-    copyToClipboard,
-    pasteFromClipboard,
-    canPaste,
   } = useFileBrowserStore();
+  
+  const {
+    hasItems: hasClipboardItems,
+    canPaste,
+    items: clipboardItems,
+    operation: clipboardOperation
+  } = useClipboardStore();
+  
+  const { 
+    handleCopy: handleCopyCommon,
+    handleCut: handleCutCommon,
+    handlePreview,
+    handleDownload,
+    handleCopyUrl 
+  } = useCommonFileOperations();
 
   const filteredObjects = useFilteredObjects();
   const loading = useIsLoading(`objects-${currentPath}`);
@@ -109,6 +130,11 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   const [sortBy, setSortBy] = React.useState<'name' | 'size' | 'date' | 'type'>('name');
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc');
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
+  const [pasteConflicts, setPasteConflicts] = React.useState<Array<{item: {key: string; name: string; isFolder: boolean}; existingKey: string}>>([]);
+  const [showConflictDialog, setShowConflictDialog] = React.useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = React.useState(false);
+  
+  const { paste } = useFileOperations();
 
   useEffect(() => {
     uploadManager.initialize();
@@ -125,41 +151,60 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   }, [currentPath]);
 
   const handleCopy = useCallback((object: R2Object) => {
-    const name = object.key.split('/').pop() || object.key;
-    copyToClipboard(object.key, name, object.isFolder);
-  }, [copyToClipboard]);
+    handleCopyCommon(object, currentPath);
+  }, [handleCopyCommon, currentPath]);
+  
+  const handleCut = useCallback((object: R2Object) => {
+    handleCutCommon(object, currentPath);
+  }, [handleCutCommon, currentPath]);
 
-  const handlePaste = useCallback(async () => {
-    if (!clipboardItem) return;
+  const checkForConflicts = useCallback(() => {
+    const conflicts: Array<{item: {key: string; name: string; isFolder: boolean}; existingKey: string}> = [];
+    const currentObjects = filteredObjects;
+    
+    for (const item of clipboardItems) {
+      const itemName = item.name;
+      const existingObject = currentObjects.find(obj => {
+        const objName = obj.key.split('/').pop() || '';
+        return objName === itemName;
+      });
+      
+      if (existingObject) {
+        conflicts.push({ item, existingKey: existingObject.key });
+      }
+    }
+    
+    return conflicts;
+  }, [clipboardItems, filteredObjects]);
+
+  const handlePaste = useCallback(async (skipConflicts?: boolean) => {
+    if (!hasClipboardItems()) return;
+    
+    // Check for conflicts first
+    if (!skipConflicts) {
+      const conflicts = checkForConflicts();
+      if (conflicts.length > 0) {
+        setPasteConflicts(conflicts);
+        setShowConflictDialog(true);
+        return;
+      }
+    }
     
     try {
-      await pasteFromClipboard(currentPath);
+      // Use the paste function from useFileOperations
+      await paste(currentPath);
+      
+      // Refresh the current folder
+      await refreshCurrentFolder();
+      
+      // Clear conflicts
+      setPasteConflicts([]);
     } catch (error) {
       console.error('Paste failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to paste');
     }
-  }, [clipboardItem, pasteFromClipboard, currentPath]);
+  }, [hasClipboardItems, paste, refreshCurrentFolder, checkForConflicts, currentPath]);
 
-  const handleDownload = async (object: R2Object) => {
-    try {
-      const response = await fetch(`/api/r2/download?key=${encodeURIComponent(object.key)}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = object.key.split('/').pop() || 'download';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success('File downloaded successfully');
-      } else {
-        toast.error('Failed to download file');
-      }
-    } catch {
-      toast.error('Error downloading file');
-    }
-  };
 
   // Sort objects based on current sort settings
   const sortedObjects = React.useMemo(() => {
@@ -225,7 +270,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       }
       
       // Paste (Ctrl/Cmd + V)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'v' && clipboardItem && canPaste(currentPath)) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v' && hasClipboardItems() && canPaste(currentPath)) {
         e.preventDefault();
         handlePaste();
       }
@@ -255,7 +300,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObject, clipboardItem, currentPath, canPaste, handleCopy, handlePaste, setShowGlobalSearch, selectedItems, sortedObjects, refreshCurrentFolder]);
+  }, [selectedObject, hasClipboardItems, currentPath, canPaste, handleCopy, handlePaste, setShowGlobalSearch, selectedItems, sortedObjects, refreshCurrentFolder]);
 
   const getBreadcrumbs = () => {
     if (!currentPath) return [];
@@ -291,29 +336,33 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   };
 
   const handleObjectAction = (object: R2Object, action: string) => {
-    setSelectedObject(object);
     switch (action) {
       case 'download':
         handleDownload(object);
         break;
       case 'preview':
-        setShowPreviewDialog(true);
+        handlePreview(object);
         break;
       case 'rename':
+        setSelectedObject(object);
         setShowRenameDialog(true);
         break;
       case 'delete':
+        setSelectedObject(object);
         setShowDeleteDialog(true);
         break;
       case 'open':
         if (object.isFolder) {
           navigateToFolder(object.key).catch(console.error);
         } else {
-          setShowPreviewDialog(true);
+          handlePreview(object);
         }
         break;
       case 'copy':
         handleCopy(object);
+        break;
+      case 'cut':
+        handleCut(object);
         break;
       case 'paste':
         handlePaste();
@@ -321,40 +370,11 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       case 'copyUrl':
         handleCopyUrl(object);
         break;
-      case 'properties':
-        handleShowProperties(object);
-        break;
     }
   };
 
 
-  const handleCopyUrl = async (object: R2Object) => {
-    try {
-      const url = `${window.location.origin}/api/r2/preview?key=${encodeURIComponent(object.key)}`;
-      await navigator.clipboard.writeText(url);
-      toast.success('URL copied to clipboard');
-    } catch {
-      toast.error('Failed to copy URL');
-    }
-  };
 
-  const handleShowProperties = (object: R2Object) => {
-    const filename = object.key.split('/').pop() || object.key;
-    const fileType = getFileType(filename);
-    
-    const properties = [
-      `Name: ${filename}`,
-      `Type: ${fileType.description}`,
-      `Size: ${object.isFolder ? 'Folder' : formatFileSize(object.size)}`,
-      `Modified: ${format(new Date(object.lastModified), 'PPpp')}`,
-      `Path: ${object.key}`,
-      `Previewable: ${fileType.previewable ? 'Yes' : 'No'}`,
-    ].join('\n');
-    
-    toast.info(properties, {
-      duration: 5000,
-    });
-  };
 
 
   const handleDropToCurrentFolder = useCallback(async (draggedItem: DragItem) => {
@@ -404,39 +424,14 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     setSelectedItems(newSelection);
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedItems.size === 0) return;
-    
-    const count = selectedItems.size;
-    const confirmMessage = `Are you sure you want to delete ${count} ${count === 1 ? 'item' : 'items'}?`;
-    
-    if (!confirm(confirmMessage)) return;
-    
-    const loadingToast = toast.loading(`Deleting ${count} ${count === 1 ? 'item' : 'items'}...`);
-    
-    try {
-      // Delete all selected items
-      for (const key of selectedItems) {
-        const response = await fetch(`/api/r2/delete?key=${encodeURIComponent(key)}`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to delete ${key}`);
-        }
-      }
-      
-      toast.dismiss(loadingToast);
-      toast.success(`Successfully deleted ${count} ${count === 1 ? 'item' : 'items'}`);
-      setSelectedItems(new Set());
-      refreshCurrentFolder();
-    } catch (error) {
-      toast.dismiss(loadingToast);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete items');
-    }
+    setShowBulkDeleteDialog(true);
   };
 
   const renderFileItem = (object: R2Object, index: number) => {
-    const isCopied = clipboardItem?.path === object.key;
+    const isCut = clipboardOperation === 'cut' && clipboardItems.some(item => item.key === object.key);
+    const isInClipboard = clipboardItems.some(item => item.key === object.key);
     const isSelected = selectedItems.has(object.key);
     const filename = object.isFolder 
       ? object.key.replace(/\/$/, '').split('/').pop() || object.key.replace(/\/$/, '')
@@ -459,7 +454,8 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                 className={`
                   group relative p-2.5 rounded-lg border border-border/50 
                   hover:border-primary/50 hover:shadow-soft transition-all duration-200
-                  ${isCopied ? 'ring-2 ring-primary/30 bg-primary/5' : 'bg-card'}
+                  ${isInClipboard ? 'ring-2 ring-primary/30 bg-primary/5' : 'bg-card'}
+                  ${isCut ? 'opacity-50' : ''}
                   ${selectedObject?.key === object.key ? 'ring-2 ring-primary' : ''}
                   ${isSelected ? 'ring-2 ring-primary/50 bg-primary/5' : ''}
                   hover:scale-[1.02] active:scale-[0.98]
@@ -480,7 +476,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                 <div className="flex flex-col items-center gap-1.5 text-center">
                   <div className="relative">
                     {getFileIconElement(object, 'lg')}
-                    {isCopied && (
+                    {isInClipboard && (
                       <div className="absolute -top-2 -right-2 bg-primary rounded-full p-1">
                         <Copy className="h-2 w-2 text-primary-foreground" />
                       </div>
@@ -562,7 +558,8 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               className={`
                 group flex items-center px-2 py-1.5 rounded-lg
                 hover:bg-accent/50 transition-all duration-200
-                ${isCopied ? 'bg-primary/10 border-l-4 border-primary' : ''}
+                ${isInClipboard ? 'bg-primary/10 border-l-4 border-primary' : ''}
+                ${isCut ? 'opacity-50' : ''}
                 ${selectedObject?.key === object.key ? 'bg-accent' : ''}
                 ${isSelected ? 'bg-primary/5 ring-1 ring-primary/30' : ''}
               `}
@@ -593,7 +590,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   title={filename}
                 >
                   {filename}
-                  {isCopied && (
+                  {isInClipboard && (
                     <span className="ml-1 text-[10px] text-primary">(copied)</span>
                   )}
                 </button>
@@ -700,112 +697,67 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     <>
       {!object.isFolder && (
         <>
-          <DropdownMenuItem onClick={() => handleObjectAction(object, 'preview')}>
+          <DropdownMenuItem onClick={() => handlePreview(object)}>
             <Eye className="h-3 w-3 mr-1" />
             Preview
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleObjectAction(object, 'download')}>
+          <DropdownMenuItem onClick={() => handleDownload(object)}>
             <Download className="h-3 w-3 mr-1" />
             Download
           </DropdownMenuItem>
         </>
       )}
-      <DropdownMenuItem onClick={() => handleObjectAction(object, 'copy')}>
+      <DropdownMenuItem onClick={() => handleCopy(object)}>
         <Clipboard className="h-3 w-3 mr-1" />
         Copy
+        <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
       </DropdownMenuItem>
-      {clipboardItem && canPaste(currentPath) && (
-        <DropdownMenuItem onClick={() => handleObjectAction(object, 'paste')}>
+      <DropdownMenuItem onClick={() => handleCut(object)}>
+        <Scissors className="h-3 w-3 mr-1" />
+        Cut
+        <DropdownMenuShortcut>⌘X</DropdownMenuShortcut>
+      </DropdownMenuItem>
+      {hasClipboardItems() && canPaste(currentPath) && (
+        <DropdownMenuItem onClick={() => handlePaste()}>
           <ClipboardPaste className="h-3 w-3 mr-1" />
-          Paste
+          Paste ({clipboardItems.length})
+          <DropdownMenuShortcut>⌘V</DropdownMenuShortcut>
         </DropdownMenuItem>
       )}
       <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={() => handleObjectAction(object, 'rename')}>
+      <DropdownMenuItem onClick={() => {
+        setSelectedObject(object);
+        setShowRenameDialog(true);
+      }}>
         <Edit className="h-3 w-3 mr-1" />
         Rename
+        <DropdownMenuShortcut>F2</DropdownMenuShortcut>
       </DropdownMenuItem>
       <DropdownMenuItem
-        onClick={() => handleObjectAction(object, 'delete')}
+        onClick={() => {
+          setSelectedObject(object);
+          setShowDeleteDialog(true);
+        }}
         className="text-destructive focus:text-destructive"
       >
         <Trash2 className="h-3 w-3 mr-1" />
         Delete
+        <DropdownMenuShortcut>⌦</DropdownMenuShortcut>
       </DropdownMenuItem>
     </>
   );
 
   const renderContextMenuItems = (object: R2Object) => (
-    <>
-      <ContextMenuItem onClick={() => handleObjectAction(object, 'open')}>
-        {object.isFolder ? (
-          <>
-            <FolderOpen className="h-3 w-3 mr-1" />
-            Open Folder
-          </>
-        ) : (
-          <>
-            <Eye className="h-3 w-3 mr-1" />
-            Open
-          </>
-        )}
-      </ContextMenuItem>
-      
-      {!object.isFolder && getFileType(object.key).previewable && (
-        <ContextMenuItem onClick={() => handleObjectAction(object, 'preview')}>
-          <Eye className="h-4 w-4 mr-2" />
-          Preview
-        </ContextMenuItem>
-      )}
-      
-      {!object.isFolder && (
-        <ContextMenuItem onClick={() => handleObjectAction(object, 'download')}>
-          <Download className="h-3 w-3 mr-1" />
-          Download
-        </ContextMenuItem>
-      )}
-      
-      <ContextMenuSeparator />
-      
-      <ContextMenuItem onClick={() => handleObjectAction(object, 'copy')}>
-        <Clipboard className="h-3 w-3 mr-1" />
-        Copy
-      </ContextMenuItem>
-      
-      {clipboardItem && canPaste(currentPath) && (
-        <ContextMenuItem onClick={() => handleObjectAction(object, 'paste')}>
-          <ClipboardPaste className="h-3 w-3 mr-1" />
-          Paste &quot;{clipboardItem.name}&quot; here
-        </ContextMenuItem>
-      )}
-      
-      <ContextMenuItem onClick={() => handleObjectAction(object, 'rename')}>
-        <Edit className="h-3 w-3 mr-1" />
-        Rename
-      </ContextMenuItem>
-      
-      <ContextMenuItem onClick={() => handleObjectAction(object, 'copyUrl')}>
-        <Copy className="h-3 w-3 mr-1" />
-        Copy URL
-      </ContextMenuItem>
-      
-      <ContextMenuSeparator />
-      
-      <ContextMenuItem onClick={() => handleObjectAction(object, 'properties')}>
-        <Info className="h-3 w-3 mr-1" />
-        Properties
-      </ContextMenuItem>
-      
-      <ContextMenuSeparator />
-      
-      <ContextMenuItem 
-        onClick={() => handleObjectAction(object, 'delete')}
-        className="text-destructive focus:text-destructive"
-      >
-        <Trash2 className="h-3 w-3 mr-1" />
-        Delete
-      </ContextMenuItem>
-    </>
+    <UnifiedContextMenu
+      object={object}
+      currentPath={currentPath}
+      context="table"
+      onNavigate={object.isFolder ? async () => await navigateToFolder(object.key) : undefined}
+      onCreateFolder={object.isFolder ? () => {
+        navigateToFolder(object.key);
+        setShowCreateFolderDialog(true);
+      } : undefined}
+    />
   );
 
   return (
@@ -1072,19 +1024,19 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   )}
                   
                   <AnimatePresence>
-                    {clipboardItem && canPaste(currentPath) && (
+                    {hasClipboardItems() && canPaste(currentPath) && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={springPresets.snappy}
                       >
-                        <Tooltip content={`Paste "${clipboardItem.name}" here`} shortcut="⌘V">
+                        <Tooltip content={`${clipboardOperation === 'cut' ? 'Move' : 'Copy'} ${clipboardItems.length} item(s)`} shortcut="⌘V">
                           <Button 
                             variant="outline" 
-                            onClick={handlePaste}
+                            onClick={() => handlePaste()}
                             className="active-scale"
-                            aria-label={`Paste ${clipboardItem.name}`}
+                            aria-label={`Paste ${clipboardItems.length} item(s)`}
                           >
                             <ClipboardPaste className="h-3 w-3 mr-1" />
                             Paste
@@ -1380,6 +1332,83 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         isOpen={showGlobalSearch}
         onClose={() => setShowGlobalSearch(false)}
         onNavigate={navigateToFolder}
+      />
+      
+      {/* Paste Conflict Dialog */}
+      {showConflictDialog && (
+        <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>File Conflicts Detected</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm">
+                The following {pasteConflicts.length} item(s) already exist in the destination:
+              </p>
+              <ScrollArea className="max-h-48">
+                <ul className="text-sm space-y-1">
+                  {pasteConflicts.map((conflict, index) => (
+                    <li key={index} className="text-muted-foreground">
+                      • {conflict.item.name}
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+              <p className="text-sm">
+                What would you like to do?
+              </p>
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowConflictDialog(false);
+                  setPasteConflicts([]);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowConflictDialog(false);
+                  handlePaste(true); // Skip conflicts
+                }}
+              >
+                Skip Conflicts
+              </Button>
+              <Button
+                variant="default"
+                onClick={async () => {
+                  setShowConflictDialog(false);
+                  // Delete existing files first
+                  for (const conflict of pasteConflicts) {
+                    await fetch(`/api/r2/delete?key=${encodeURIComponent(conflict.existingKey)}`, {
+                      method: 'DELETE',
+                    });
+                  }
+                  setPasteConflicts([]);
+                  handlePaste(false); // Paste all
+                }}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Replace All
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      
+      <BulkDeleteDialog
+        isOpen={showBulkDeleteDialog}
+        onClose={() => {
+          setShowBulkDeleteDialog(false);
+        }}
+        selectedKeys={selectedItems}
+        onDeleted={() => {
+          setSelectedItems(new Set());
+          refreshCurrentFolder();
+        }}
       />
       
     </div>

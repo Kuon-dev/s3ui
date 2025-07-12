@@ -172,13 +172,48 @@ export async function renameObject(oldKey: string, newKey: string): Promise<void
   if (oldKey.endsWith('/')) {
     // Rename folder - need to copy all contents recursively
     const objects = await listObjectsRecursive(oldKey);
+    
+    // First, copy all objects to the new location
     for (const obj of objects) {
       // Use substring to safely replace the prefix without regex issues
       const relativePath = obj.key.substring(oldKey.length);
       const newObjKey = newKey + relativePath;
       await copyObject(obj.key, newObjKey);
-      await deleteObject(obj.key);
     }
+    
+    // Then delete in reverse order (deepest first) to avoid deleting parent folders
+    // before their contents. This prevents the recursive deletion issue.
+    const sortedObjects = [...objects].sort((a, b) => {
+      // Sort by path depth (more slashes = deeper) and then reverse alphabetically
+      const depthA = a.key.split('/').length;
+      const depthB = b.key.split('/').length;
+      if (depthA !== depthB) {
+        return depthB - depthA; // Deeper paths first
+      }
+      return b.key.localeCompare(a.key); // Reverse alphabetical for same depth
+    });
+    
+    // Delete files and empty folders only (not folders with contents)
+    for (const obj of sortedObjects) {
+      if (!obj.key.endsWith('/')) {
+        // It's a file, safe to delete
+        await deleteObject(obj.key);
+      } else {
+        // It's a folder - use DeleteObjectCommand directly to avoid recursive deletion
+        const command = new DeleteObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: obj.key,
+        });
+        await r2Client.send(command);
+      }
+    }
+    
+    // Finally, delete the original folder itself
+    const command = new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: oldKey,
+    });
+    await r2Client.send(command);
   } else {
     // Rename file
     await copyObject(oldKey, newKey);

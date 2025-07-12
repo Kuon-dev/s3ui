@@ -7,13 +7,14 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
+import { useClipboardStore } from '@/lib/stores/clipboard-store';
 import { motion, AnimatePresence } from 'motion/react';
 import { springPresets } from '@/lib/animations';
 import { DropZone } from './drop-zone';
 import { R2Object } from '@/lib/r2/operations';
 import { FileTreeContextMenu } from './file-tree-context-menu';
-import { useFileOperations } from '@/lib/hooks/use-file-operations';
 import { useNavigationStore } from '@/lib/stores/navigation-store';
+import { useCommonFileOperations } from '@/lib/hooks/use-common-file-operations';
 import { toast } from 'sonner';
 
 interface R2FileTreeProps {
@@ -38,16 +39,18 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     isPathExpanded, 
     toggleFolder, 
     loadFolderChildren,
-    setSelectedObject,
-    setShowCreateFolderDialog,
-    setShowRenameDialog
+    setShowCreateFolderDialog
   } = useFileBrowserStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredFolder, setHoveredFolder] = useState<string | null>(null);
   
   // Additional hooks for context menu
-  const { deleteItems } = useFileOperations();
   const { expandAllFrom, collapseAllFrom } = useNavigationStore();
+  const { 
+    items: clipboardItems, 
+    operation: clipboardOperation
+  } = useClipboardStore();
+  const { handleRename, handleDelete } = useCommonFileOperations();
 
   // Convert folderTree from store to our TreeNode format
   const treeData = useMemo(() => {
@@ -93,21 +96,24 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     setShowCreateFolderDialog(true);
   }, [onNavigate, setShowCreateFolderDialog]);
   
-  const handleRename = useCallback((node: TreeNode) => {
-    const folderObject: R2Object = {
+  const handleRenameNode = useCallback((node: TreeNode) => {
+    const nodeObject = {
       key: node.path.endsWith('/') ? node.path : node.path + '/',
-      size: 0,
-      lastModified: new Date(),
+      name: node.name,
       isFolder: true
     };
-    setSelectedObject(folderObject);
-    setShowRenameDialog(true);
-  }, [setSelectedObject, setShowRenameDialog]);
+    handleRename(nodeObject);
+  }, [handleRename]);
   
-  const handleDelete = useCallback((node: TreeNode) => {
-    const folderKey = node.path.endsWith('/') ? node.path : node.path + '/';
-    deleteItems({ keys: [folderKey] });
-  }, [deleteItems]);
+  const handleDeleteNode = useCallback((node: TreeNode) => {
+    const nodeObject = {
+      key: node.path.endsWith('/') ? node.path : node.path + '/',
+      name: node.name,
+      isFolder: true
+    };
+    handleDelete(nodeObject);
+  }, [handleDelete]);
+  
   
   const handleRefresh = useCallback(async (path: string) => {
     await loadFolderChildren(path);
@@ -115,9 +121,14 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     toast.success('Folder refreshed');
   }, [loadFolderChildren, loadFolderTree]);
   
-  const handleExpandAll = useCallback((path: string) => {
-    expandAllFrom(path);
-    toast.success('Expanded all folders');
+  const handleExpandAll = useCallback(async (path: string) => {
+    const loadingToast = toast.loading('Expanding all folders...');
+    try {
+      await expandAllFrom(path);
+      toast.success('Expanded all folders', { id: loadingToast });
+    } catch {
+      toast.error('Failed to expand all folders', { id: loadingToast });
+    }
   }, [expandAllFrom]);
   
   const handleCollapseAll = useCallback((path: string) => {
@@ -125,9 +136,17 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     toast.success('Collapsed all folders');
   }, [collapseAllFrom]);
   
-  const handleShowProperties = useCallback(() => {
-    // Properties dialog not implemented yet
-    toast.info('Properties dialog coming soon!');
+  
+  // Helper function to find a node by path
+  const findNodeByPath = useCallback((node: TreeNode, path: string): TreeNode | null => {
+    if (node.path === path) return node;
+    
+    for (const child of node.children) {
+      const found = findNodeByPath(child, path);
+      if (found) return found;
+    }
+    
+    return null;
   }, []);
 
   const filterTree = useCallback((node: TreeNode, query: string): TreeNode | null => {
@@ -147,6 +166,7 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     
     return null;
   }, []);
+  
 
   const filteredTree = useMemo(() => {
     return filterTree(treeData, searchQuery) || treeData;
@@ -157,6 +177,8 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     const isActive = currentPath === node.path;
     const hasChildren = node.children.length > 0;
     const isHovered = hoveredFolder === node.path;
+    const isCut = clipboardOperation === 'cut' && clipboardItems.some(item => 
+      item.key === node.path || item.key === node.path + '/');
     
     // Create a mock R2Object for the folder
     const folderObject: R2Object = {
@@ -171,16 +193,19 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
         initial={false}
         animate={{ 
           backgroundColor: isActive ? 'var(--accent)' : isHovered ? 'var(--accent)/0.5' : 'transparent',
+          opacity: isCut ? 0.5 : 1
         }}
         transition={{ duration: 0.15 }}
         className={cn(
           "group flex items-center gap-1 rounded-md transition-all duration-150",
           "hover:bg-accent/50",
-          isActive && "bg-accent font-medium"
+          isActive && "bg-accent font-medium",
+          isCut && "italic"
         )}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onMouseEnter={() => setHoveredFolder(node.path)}
         onMouseLeave={() => setHoveredFolder(null)}
+        tabIndex={0}
       >
         {hasChildren && (
           <Button
@@ -244,13 +269,13 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
           <FileTreeContextMenu
             node={node}
             onCreateFolder={() => handleCreateFolder(node.path)}
-            onRename={() => handleRename(node)}
-            onDelete={() => handleDelete(node)}
+            onRename={() => handleRenameNode(node)}
+            onDelete={() => handleDeleteNode(node)}
             onRefresh={() => handleRefresh(node.path)}
             onNavigate={() => handleFolderClick(node.path)}
             onExpandAll={() => handleExpandAll(node.path)}
             onCollapseAll={() => handleCollapseAll(node.path)}
-            onShowProperties={() => handleShowProperties()}
+            onPaste={async () => {}}
           >
             {nodeContent}
           </FileTreeContextMenu>
@@ -274,7 +299,7 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
   };
 
   return (
-    <div className={cn("h-full flex flex-col", className)}>
+    <div className={cn("h-full flex flex-col file-tree-container", className)}>
       {/* Header */}
       <div className="p-grid-4 border-b border-border/50 glass-subtle">
         <h2 className="text-sm font-semibold text-foreground mb-grid-3">Folders</h2>

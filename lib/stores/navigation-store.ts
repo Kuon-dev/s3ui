@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { FolderTreeNode } from '@/lib/r2/operations';
 
 /**
  * Navigation Store
@@ -31,7 +32,7 @@ export interface NavigationState {
   toggleFolder: (path: string) => void;
   expandPathToFolder: (targetPath: string) => void;
   collapseAll: () => void;
-  expandAllFrom: (basePath: string) => void;
+  expandAllFrom: (basePath: string) => Promise<void>;
   collapseAllFrom: (basePath: string) => void;
   isExpanded: (path: string) => boolean;
   
@@ -176,21 +177,65 @@ export const useNavigationStore = create<NavigationState>()(
         set({ expandedFolders: new Set<string>() });
       },
       
-      expandAllFrom: (basePath: string) => {
-        // This would need to work with the file system store to get all folders
-        // For now, we'll expand the current folder and its immediate children
-        // In a real implementation, we'd need to recursively get all subfolders
+      expandAllFrom: async (basePath: string) => {
+        // Get reference to file browser store to access folder tree
+        const fileBrowserStore = (await import('./file-browser-store')).useFileBrowserStore.getState();
+        const { markFolderAsLoaded } = get();
+        
+        // Helper function to recursively collect all folder paths
+        const collectFolderPaths = (nodes: FolderTreeNode[]): string[] => {
+          let paths: string[] = [];
+          
+          for (const node of nodes) {
+            if (node.isFolder !== false) { // Default to folder
+              const nodePath = node.path;
+              paths.push(nodePath);
+              
+              // Mark as loaded so UI knows it's safe to expand
+              markFolderAsLoaded(nodePath);
+              
+              if (node.children && node.children.length > 0) {
+                paths = paths.concat(collectFolderPaths(node.children));
+              }
+            }
+          }
+          
+          return paths;
+        };
+        
+        // First, ensure the base folder is loaded
+        await fileBrowserStore.loadFolderTree(basePath);
+        
+        // Get all folders starting from basePath
+        const folderTree = fileBrowserStore.folderTree;
+        let foldersToExpand: string[] = [basePath];
+        
+        if (basePath === '') {
+          // Expand all folders from root
+          foldersToExpand = foldersToExpand.concat(collectFolderPaths(folderTree));
+        } else {
+          // Find the node in the tree and expand all its children
+          const findNode = (nodes: FolderTreeNode[], targetPath: string): FolderTreeNode | null => {
+            for (const node of nodes) {
+              if (node.path === targetPath) return node;
+              if (node.children) {
+                const found = findNode(node.children, targetPath);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          
+          const targetNode = findNode(folderTree, basePath);
+          if (targetNode && targetNode.children) {
+            foldersToExpand = foldersToExpand.concat(collectFolderPaths(targetNode.children));
+          }
+        }
+        
+        // Update expanded folders
         set((state) => {
           const newExpanded = new Set(state.expandedFolders);
-          newExpanded.add(basePath);
-          
-          // Also expand immediate children that are already loaded
-          state.loadedFolders.forEach(loadedPath => {
-            if (loadedPath.startsWith(basePath + '/') || (basePath === '' && loadedPath !== '')) {
-              newExpanded.add(loadedPath);
-            }
-          });
-          
+          foldersToExpand.forEach(path => newExpanded.add(path));
           return { expandedFolders: newExpanded };
         });
       },
