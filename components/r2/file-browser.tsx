@@ -1017,7 +1017,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={refreshCurrentFolder}
+                      onClick={() => refreshCurrentFolder()}
                       className="h-7 px-2 border-muted hover:bg-accent"
                       aria-label="Refresh folder"
                     >
