@@ -181,6 +181,10 @@ export async function renameObject(oldKey: string, newKey: string): Promise<void
       await copyObject(obj.key, newObjKey);
     }
     
+    // Add a small delay to ensure copy operations are fully committed in R2
+    // This helps reduce the window where both old and new folders exist
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Then delete in reverse order (deepest first) to avoid deleting parent folders
     // before their contents. This prevents the recursive deletion issue.
     const sortedObjects = [...objects].sort((a, b) => {
