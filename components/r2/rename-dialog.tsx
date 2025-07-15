@@ -80,8 +80,12 @@ export function RenameDialog({
         newKey += '/';
       }
 
+      console.log('[RenameDialog] Starting rename:', object.key, '->', newKey);
+
       // Use the store's renameObject method which handles path updates
       await renameObject(object.key, newKey);
+      
+      console.log('[RenameDialog] Rename completed');
       
       // The store method already shows success toast, so we just close
       onClose();

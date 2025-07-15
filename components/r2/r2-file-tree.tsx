@@ -36,6 +36,7 @@ export interface TreeNode {
 export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreeProps) {
   const { 
     folderTree,
+    folderTreeVersion,
     loadFolderTree,
     isPathExpanded, 
     toggleFolder, 
@@ -72,7 +73,12 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     };
 
     return root;
-  }, [folderTree]);
+  }, [folderTree]); // folderTreeVersion is only used to force re-render
+
+  // Force re-render when folder tree version changes
+  useEffect(() => {
+    console.log('[R2FileTree] Folder tree version changed:', folderTreeVersion);
+  }, [folderTreeVersion]);
 
   // Load folder tree on mount and subscribe to rename events
   useEffect(() => {

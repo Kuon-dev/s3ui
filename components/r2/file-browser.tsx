@@ -78,7 +78,7 @@ import { UploadDialog } from './upload-dialog';
 import { TooltipWrapper as Tooltip } from '@/components/ui/tooltip-wrapper';
 import { getParentPath } from '@/lib/utils/path';
 import { cn } from '@/lib/utils';
-import { fileEventBus } from '@/lib/utils/file-event-bus';
+import { fileEventBus, type FileSystemEvent } from '@/lib/utils/file-event-bus';
 
 interface FileBrowserProps {
   initialPath?: string;
@@ -108,6 +108,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     loadObjects,
     refreshCurrentFolder,
     renameObject,
+    checkAndRestore,
   } = useFileBrowserStore();
   
   const {
@@ -136,16 +137,26 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   const [showConflictDialog, setShowConflictDialog] = React.useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = React.useState(false);
   
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[FileBrowser] Component rendered - currentPath:', currentPath, 'objects count:', filteredObjects.length);
+  }, [currentPath, filteredObjects]);
+  
   const { paste } = useFileOperations();
 
   useEffect(() => {
     uploadManager.initialize();
-    if (initialPath && initialPath !== currentPath) {
-      setCurrentPath(initialPath);
-    } else {
-      loadObjects(currentPath);
-    }
-  }, [initialPath, currentPath, setCurrentPath, loadObjects]);
+    
+    // Check if we need to restore state after a refresh
+    checkAndRestore().then(() => {
+      // Only load if we didn't restore (restoration includes navigation)
+      if (initialPath && initialPath !== currentPath) {
+        setCurrentPath(initialPath);
+      } else {
+        loadObjects(currentPath);
+      }
+    });
+  }, [initialPath, currentPath, setCurrentPath, loadObjects, checkAndRestore]);
 
   // Clear selection when changing paths
   useEffect(() => {
@@ -155,8 +166,15 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   // Subscribe to file system events to update UI when files/folders are renamed
   useEffect(() => {
     // Handler for file rename events
-    const handleFileRenamed = async (event: any) => {
-      const { oldPath, newPath } = event.payload;
+    const handleFileRenamed = async (event: FileSystemEvent) => {
+      const { oldPath, newPath, metadata } = event.payload;
+      
+      // Skip if oldPath or newPath is missing
+      if (!oldPath || !newPath) return;
+      
+      // Only refresh for remote events (from other tabs)
+      const isRemote = metadata && typeof metadata === 'object' && 'isRemote' in metadata && metadata.isRemote === true;
+      if (!isRemote) return;
       
       // Check if the renamed file is in the current folder
       const oldParent = getParentPath(oldPath);
@@ -169,8 +187,15 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     };
 
     // Handler for folder rename events
-    const handleFolderRenamed = async (event: any) => {
-      const { oldPath, newPath } = event.payload;
+    const handleFolderRenamed = async (event: FileSystemEvent) => {
+      const { oldPath, newPath, metadata } = event.payload;
+      
+      // Skip if oldPath or newPath is missing
+      if (!oldPath || !newPath) return;
+      
+      // Only refresh for remote events (from other tabs)
+      const isRemote = metadata && typeof metadata === 'object' && 'isRemote' in metadata && metadata.isRemote === true;
+      if (!isRemote) return;
       
       // Remove trailing slashes for comparison
       const oldFolderPath = oldPath.endsWith('/') ? oldPath.slice(0, -1) : oldPath;
@@ -200,24 +225,45 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     const unsubscribeFolderRenamed = fileEventBus.on('folder.renamed', handleFolderRenamed);
     
     // Also subscribe to file/folder creation and deletion events
-    const handleFileCreated = async (event: any) => {
-      const filePath = event.payload.path;
+    const handleFileCreated = async (event: FileSystemEvent) => {
+      const { path: filePath, metadata } = event.payload;
+      
+      // Skip if path is missing
+      if (!filePath) return;
+      
+      // Only refresh for remote events (from other tabs)
+      const isRemote = metadata && typeof metadata === 'object' && 'isRemote' in metadata && metadata.isRemote === true;
+      if (!isRemote) return;
       const parent = getParentPath(filePath);
       if (parent === currentPath) {
         await refreshCurrentFolder();
       }
     };
     
-    const handleFileDeleted = async (event: any) => {
-      const filePath = event.payload.path;
+    const handleFileDeleted = async (event: FileSystemEvent) => {
+      const { path: filePath, metadata } = event.payload;
+      
+      // Skip if path is missing
+      if (!filePath) return;
+      
+      // Only refresh for remote events (from other tabs)
+      const isRemote = metadata && typeof metadata === 'object' && 'isRemote' in metadata && metadata.isRemote === true;
+      if (!isRemote) return;
       const parent = getParentPath(filePath);
       if (parent === currentPath) {
         await refreshCurrentFolder();
       }
     };
     
-    const handleFolderCreated = async (event: any) => {
-      const folderPath = event.payload.path;
+    const handleFolderCreated = async (event: FileSystemEvent) => {
+      const { path: folderPath, metadata } = event.payload;
+      
+      // Skip if path is missing
+      if (!folderPath) return;
+      
+      // Only refresh for remote events (from other tabs)
+      const isRemote = metadata && typeof metadata === 'object' && 'isRemote' in metadata && metadata.isRemote === true;
+      if (!isRemote) return;
       const folderWithoutSlash = folderPath.endsWith('/') ? folderPath.slice(0, -1) : folderPath;
       const parent = getParentPath(folderWithoutSlash);
       if (parent === currentPath) {
@@ -225,8 +271,15 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       }
     };
     
-    const handleFolderDeleted = async (event: any) => {
-      const folderPath = event.payload.path;
+    const handleFolderDeleted = async (event: FileSystemEvent) => {
+      const { path: folderPath, metadata } = event.payload;
+      
+      // Skip if path is missing
+      if (!folderPath) return;
+      
+      // Only refresh for remote events (from other tabs)
+      const isRemote = metadata && typeof metadata === 'object' && 'isRemote' in metadata && metadata.isRemote === true;
+      if (!isRemote) return;
       const folderWithoutSlash = folderPath.endsWith('/') ? folderPath.slice(0, -1) : folderPath;
       const parent = getParentPath(folderWithoutSlash);
       if (parent === currentPath) {

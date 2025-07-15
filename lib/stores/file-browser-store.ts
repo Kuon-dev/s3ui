@@ -4,9 +4,8 @@ import { R2Object, FolderTreeNode } from '@/lib/r2/operations';
 import { toast } from 'sonner';
 import { ensureFolderPath, stripTrailingSlash, getParentPath } from '@/lib/utils/path';
 import { validatePath, normalizePath, canMoveOrRename } from '@/lib/utils/path-validation';
-import { useNavigationStore } from './navigation-store';
 import { fileOperationQueue, hasConflictingOperation } from '@/lib/utils/operation-queue';
-import { emitFileDeleted, emitFileRenamed, emitFolderCreated, emitFolderDeleted, emitFolderRenamed } from '@/lib/utils/file-event-bus';
+import { emitFileDeleted, emitFolderCreated, emitFolderDeleted } from '@/lib/utils/file-event-bus';
 import { fetchWithRetry, r2OperationWithRetry } from '@/lib/utils/retry-utils';
 import { dragDropGuard } from '@/lib/utils/drag-drop-guards';
 
@@ -61,10 +60,19 @@ interface FileBrowserState {
   cacheTimeout: number; // in milliseconds
   selectedObject: R2Object | null;
   
+  // Force re-render when data changes
+  dataVersion: number;
+  folderTreeVersion: number;
+  
+  // Restore state after refresh
+  pendingRestore: boolean;
+  restorePath: string | null;
+  restoreSelection: string[];
+  
   // File Operations
   loadObjects: (prefix?: string, forceRefresh?: boolean) => Promise<void>;
   loadFolderTree: (prefix?: string) => Promise<void>;
-  refreshCurrentFolder: () => Promise<void>;
+  refreshCurrentFolder: (skipTreeRefresh?: boolean) => Promise<void>;
   deleteObject: (key: string) => Promise<void>;
   renameObject: (oldKey: string, newKey: string, isMove?: boolean) => Promise<void>;
   moveObject: (oldKey: string, newKey: string) => Promise<void>;
@@ -78,7 +86,7 @@ interface FileBrowserState {
   toggleFolder: (path: string) => void;
   expandFolder: (path: string) => void;
   collapseFolder: (path: string) => void;
-  loadFolderChildren: (path: string) => Promise<void>;
+  loadFolderChildren: (path: string, forceReload?: boolean) => Promise<void>;
   expandPathToFolder: (targetPath: string) => void;
   isPathExpanded: (path: string) => boolean;
   updateFolderTree: (updater: (tree: FolderTreeNode[]) => FolderTreeNode[]) => void;
@@ -121,6 +129,7 @@ interface FileBrowserState {
   // Utility
   setObjects: (objects: R2Object[], path?: string) => void;
   setFolderTree: (tree: FolderTreeNode[]) => void;
+  checkAndRestore: () => Promise<void>;
 }
 
 export const useFileBrowserStore = create<FileBrowserState>()(
@@ -151,6 +160,11 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       selectedObject: null,
       lastFetched: new Map(),
       cacheTimeout: 60000, // 60 seconds
+      dataVersion: 0,
+      folderTreeVersion: 0,
+      pendingRestore: false,
+      restorePath: null,
+      restoreSelection: [],
       
       // File Operations
       loadObjects: async (prefix?: string, forceRefresh = false) => {
@@ -175,18 +189,52 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         get().setLoading(loadingKey, true);
         try {
           const apiPrefix = path && !path.endsWith('/') ? `${path}/` : path;
+          // Add timestamp to prevent caching
+          const timestamp = Date.now();
           const response = await fetchWithRetry(
-            `/api/r2/list?prefix=${encodeURIComponent(apiPrefix)}`,
+            `/api/r2/list?prefix=${encodeURIComponent(apiPrefix)}&t=${timestamp}`,
             undefined,
             { maxAttempts: 3 }
           );
           const data = await response.json();
           
           if (response.ok) {
-            set(state => ({
-              objects: new Map(state.objects).set(path, data.objects),
-              lastFetched: new Map(state.lastFetched).set(path, Date.now())
-            }));
+            console.log('[loadObjects] Loading objects for path:', path, 'count:', data.objects.length);
+            
+            // Log the first few objects to see what's being loaded
+            if (data.objects.length > 0) {
+              console.log('[loadObjects] Sample objects:', data.objects.slice(0, 3).map((obj: R2Object) => ({
+                key: obj.key,
+                isFolder: obj.isFolder,
+                size: obj.size
+              })));
+            }
+            
+            set(state => {
+              // Create new Map instances to ensure React detects the change
+              const newObjects = new Map(state.objects);
+              // Ensure the array is a new reference by spreading
+              newObjects.set(path, [...data.objects]);
+              
+              const newLastFetched = new Map(state.lastFetched);
+              newLastFetched.set(path, Date.now());
+              
+              const newDataVersion = state.dataVersion + 1;
+              console.log('[loadObjects] State update - path:', path, 'dataVersion:', state.dataVersion, '->', newDataVersion);
+              
+              return {
+                objects: newObjects,
+                lastFetched: newLastFetched,
+                dataVersion: newDataVersion
+              };
+            });
+            
+            // Log the state after update
+            setTimeout(() => {
+              const updatedState = get();
+              console.log('[loadObjects] After update - objects for path:', path, 'count:', updatedState.objects.get(path)?.length);
+              console.log('[loadObjects] After update - dataVersion:', updatedState.dataVersion);
+            }, 0);
           } else {
             toast.error('Failed to load files');
           }
@@ -213,7 +261,10 @@ export const useFileBrowserStore = create<FileBrowserState>()(
             const { loadedFolders, updateFolderTree } = get();
             
             if (prefix === '') {
-              set({ folderTree: data.folderTree });
+              set(state => ({ 
+                folderTree: data.folderTree,
+                folderTreeVersion: state.folderTreeVersion + 1
+              }));
             } else {
               // Update the tree by adding children to the expanded folder
               updateFolderTree((tree) => {
@@ -245,8 +296,10 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         }
       },
       
-      refreshCurrentFolder: async () => {
+      refreshCurrentFolder: async (skipTreeRefresh = false) => {
         const { currentPath, loadObjects, loadFolderTree, loadedFolders } = get();
+        
+        console.log('[refreshCurrentFolder] Starting refresh for path:', currentPath, 'skipTreeRefresh:', skipTreeRefresh);
         
         // First, load the current path objects
         const loadObjectsPromise = loadObjects(currentPath, true);
@@ -254,18 +307,22 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         // Then, reload all previously loaded folders to preserve tree structure
         const reloadPromises: Promise<void>[] = [loadObjectsPromise];
         
-        // Always load root
-        reloadPromises.push(loadFolderTree(''));
-        
-        // Reload all other previously loaded folders
-        for (const loadedPath of loadedFolders) {
-          // Skip root (already loaded) and avoid duplicates
-          if (loadedPath !== '' && loadedPath !== '/') {
-            reloadPromises.push(loadFolderTree(loadedPath));
+        if (!skipTreeRefresh) {
+          // Always load root
+          reloadPromises.push(loadFolderTree(''));
+          
+          // Reload all other previously loaded folders
+          for (const loadedPath of loadedFolders) {
+            // Skip root (already loaded) and avoid duplicates
+            if (loadedPath !== '' && loadedPath !== '/') {
+              reloadPromises.push(loadFolderTree(loadedPath));
+            }
           }
         }
         
         await Promise.all(reloadPromises);
+        
+        console.log('[refreshCurrentFolder] Refresh completed for path:', currentPath);
       },
       
       deleteObject: async (key: string) => {
@@ -377,6 +434,8 @@ export const useFileBrowserStore = create<FileBrowserState>()(
             get().setLoading(loadingKey, true);
             
             try {
+          console.log('[renameObject] Sending rename request:', { oldKey: normalizedOldKey, newKey: normalizedNewKey });
+          
           const response = await r2OperationWithRetry(
             () => fetch('/api/r2/rename', {
               method: 'POST',
@@ -387,120 +446,47 @@ export const useFileBrowserStore = create<FileBrowserState>()(
             { maxAttempts: 2 }
           );
           
+          console.log('[renameObject] Rename response status:', response.ok);
+          
           if (response.ok) {
             toast.success(isMove ? 'Moved successfully' : 'Renamed successfully');
-            // Invalidate cache for source and destination folders
-            const sourceFolder = getParentPath(normalizedOldKey);
-            const destFolder = getParentPath(normalizedNewKey);
-            set(state => {
-              const newLastFetched = new Map(state.lastFetched);
-              newLastFetched.delete(sourceFolder);
-              if (destFolder !== sourceFolder) {
-                newLastFetched.delete(destFolder);
-              }
-              return { lastFetched: newLastFetched };
-            });
             
-            // Check if renamed folder affects current navigation path
+            // Store current state for restoration after refresh
             const currentPath = get().currentPath;
-            const navigationStore = useNavigationStore.getState();
+            const selectedObjects = Array.from(get().selectedObjects);
+            let restorePath = currentPath;
             
-            // Handle folder renames that affect the current path and expanded folders
+            // If renaming a folder, update the restore path if necessary
             if (normalizedOldKey.endsWith('/')) {
-              // Remove trailing slash for comparison
               const oldFolderPath = normalizedOldKey.slice(0, -1);
               const newFolderPath = normalizedNewKey.slice(0, -1);
               
-              // Check if current path includes the renamed folder
+              // Check if current path is affected by the rename
               if (currentPath === oldFolderPath || currentPath.startsWith(oldFolderPath + '/')) {
-                // Calculate the new path
-                const newPath = currentPath === oldFolderPath 
+                // Update the restore path
+                restorePath = currentPath === oldFolderPath 
                   ? newFolderPath 
                   : newFolderPath + currentPath.substring(oldFolderPath.length);
-                
-                // Update navigation to the new path
-                navigationStore.navigateToPath(newPath);
-                // Update the local currentPath as well
-                set({ currentPath: newPath });
+                console.log('[renameObject] Updated restore path:', currentPath, '->', restorePath);
               }
-              
-              // Update expanded folders state
-              const expandedFolders = navigationStore.expandedFolders;
-              const newExpandedFolders = new Set<string>();
-              
-              expandedFolders.forEach(expandedPath => {
-                if (expandedPath === oldFolderPath || expandedPath.startsWith(oldFolderPath + '/')) {
-                  // Update this expanded path
-                  const updatedPath = expandedPath === oldFolderPath
-                    ? newFolderPath
-                    : newFolderPath + expandedPath.substring(oldFolderPath.length);
-                  newExpandedFolders.add(updatedPath);
-                } else {
-                  // Keep unchanged paths
-                  newExpandedFolders.add(expandedPath);
-                }
-              });
-              
-              // Update history to reflect renamed paths
-              const history = navigationStore.history;
-              const newHistory = history.map(historyPath => {
-                if (historyPath === oldFolderPath || historyPath.startsWith(oldFolderPath + '/')) {
-                  return historyPath === oldFolderPath
-                    ? newFolderPath
-                    : newFolderPath + historyPath.substring(oldFolderPath.length);
-                }
-                return historyPath;
-              });
-              
-              // Update the navigation store state
-              useNavigationStore.setState({ 
-                expandedFolders: newExpandedFolders,
-                history: newHistory
-              });
-              
-              // Update loadedFolders to reflect the renamed paths
-              const loadedFolders = get().loadedFolders;
-              const newLoadedFolders = new Set<string>();
-              
-              loadedFolders.forEach(loadedPath => {
-                // Handle the folder itself and its trailing slash variant
-                const pathWithoutSlash = loadedPath.endsWith('/') ? loadedPath.slice(0, -1) : loadedPath;
-                
-                if (pathWithoutSlash === oldFolderPath || pathWithoutSlash.startsWith(oldFolderPath + '/')) {
-                  // Update this loaded path
-                  const updatedPath = pathWithoutSlash === oldFolderPath
-                    ? newFolderPath
-                    : newFolderPath + pathWithoutSlash.substring(oldFolderPath.length);
-                  
-                  // Add both with and without trailing slash to match the original pattern
-                  if (loadedPath.endsWith('/')) {
-                    newLoadedFolders.add(updatedPath + '/');
-                  } else {
-                    newLoadedFolders.add(updatedPath);
-                  }
-                } else {
-                  // Keep unchanged paths
-                  newLoadedFolders.add(loadedPath);
-                }
-              });
-              
-              set({ loadedFolders: newLoadedFolders });
             }
             
-            // Add a small delay to ensure R2 has propagated the changes
-            // This is especially important for folder renames which involve multiple operations
-            if (normalizedOldKey.endsWith('/')) {
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
+            // Set restore state
+            set({
+              pendingRestore: true,
+              restorePath: restorePath,
+              restoreSelection: selectedObjects
+            });
             
-            await get().refreshCurrentFolder();
+            console.log('[renameObject] Set restore state - path:', restorePath, 'selection:', selectedObjects);
             
-            // Emit event for rename/move
-            if (normalizedOldKey.endsWith('/')) {
-              await emitFolderRenamed(normalizedOldKey, normalizedNewKey);
-            } else {
-              await emitFileRenamed(normalizedOldKey, normalizedNewKey);
-            }
+            // Force a browser refresh to ensure everything is in sync
+            console.log('[renameObject] Refreshing browser...');
+            setTimeout(() => {
+              window.location.reload();
+            }, 500); // Small delay to ensure state is saved
+            
+            // No need for complex updates - browser will refresh
           } else {
             const error = await response.json();
             throw new Error(error.message || (isMove ? 'Failed to move' : 'Failed to rename'));
@@ -627,11 +613,11 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         set({ expandedFolders });
       },
       
-      loadFolderChildren: async (path: string) => {
+      loadFolderChildren: async (path: string, forceReload: boolean = false) => {
         const folderPath = path ? `${path}/` : '';
         const { loadedFolders } = get();
         
-        if (!loadedFolders.has(folderPath)) {
+        if (forceReload || !loadedFolders.has(folderPath)) {
           await get().loadFolderTree(folderPath);
         }
       },
@@ -656,7 +642,10 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       },
       
       updateFolderTree: (updater) => {
-        set({ folderTree: updater(get().folderTree) });
+        set(state => ({ 
+          folderTree: updater(state.folderTree),
+          folderTreeVersion: state.folderTreeVersion + 1
+        }));
       },
       
       // Selection
@@ -1030,16 +1019,42 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       setObjects: (objects, path) => {
         const currentPath = path ?? get().currentPath;
         set(state => ({
-          objects: new Map(state.objects).set(currentPath, objects)
+          objects: new Map(state.objects).set(currentPath, objects),
+          dataVersion: state.dataVersion + 1
         }));
       },
       setFolderTree: (tree) => set({ folderTree: tree }),
+      
+      // Check and perform restore after refresh
+      checkAndRestore: async () => {
+        const { pendingRestore, restorePath, restoreSelection, navigateToFolder, selectObject } = get();
+        
+        if (pendingRestore && restorePath !== null) {
+          console.log('[checkAndRestore] Restoring state - path:', restorePath, 'selection:', restoreSelection);
+          
+          // Clear the restore flag first
+          set({ pendingRestore: false, restorePath: null, restoreSelection: [] });
+          
+          // Navigate to the saved path
+          await navigateToFolder(restorePath);
+          
+          // Restore selection if any
+          restoreSelection.forEach(key => {
+            selectObject(key);
+          });
+          
+          console.log('[checkAndRestore] Restore completed');
+        }
+      },
     }),
     {
       name: 'file-browser-storage',
       partialize: (state) => ({
         viewMode: state.viewMode,
         expandedFolders: Array.from(state.expandedFolders),
+        pendingRestore: state.pendingRestore,
+        restorePath: state.restorePath,
+        restoreSelection: state.restoreSelection,
       }),
       onRehydrateStorage: () => (state) => {
         if (state && state.expandedFolders) {
@@ -1061,8 +1076,11 @@ export const useFilteredObjects = () => {
   const objects = useFileBrowserStore((state) => state.objects);
   const currentPath = useFileBrowserStore((state) => state.currentPath);
   const searchQuery = useFileBrowserStore((state) => state.searchQuery);
+  const dataVersion = useFileBrowserStore((state) => state.dataVersion); // Force re-render on data changes
   
   const currentObjects = objects.get(currentPath) || [];
+  
+  console.log('[useFilteredObjects] Rendering - path:', currentPath, 'objects count:', currentObjects.length, 'dataVersion:', dataVersion);
   
   return currentObjects.filter(object => {
     if (!searchQuery) return true;
