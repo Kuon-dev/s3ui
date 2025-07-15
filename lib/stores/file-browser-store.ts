@@ -248,6 +248,11 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       loadFolderTree: async (prefix = '') => {
         const loadingKey = `tree-${prefix}`;
         
+        // Check if already loading to prevent duplicate concurrent calls
+        if (get().loading[loadingKey]) {
+          return;
+        }
+        
         get().setLoading(loadingKey, true);
         try {
           const response = await fetchWithRetry(
@@ -258,16 +263,18 @@ export const useFileBrowserStore = create<FileBrowserState>()(
           const data = await response.json();
           
           if (response.ok) {
-            const { loadedFolders, updateFolderTree } = get();
-            
-            if (prefix === '') {
-              set(state => ({ 
-                folderTree: data.folderTree,
-                folderTreeVersion: state.folderTreeVersion + 1
-              }));
-            } else {
-              // Update the tree by adding children to the expanded folder
-              updateFolderTree((tree) => {
+            // Use a single atomic state update to prevent race conditions
+            set(state => {
+              const newState: Partial<FileBrowserState> = {};
+              
+              if (prefix === '') {
+                // Root folder update - clear all loaded/expanded state for a clean refresh
+                newState.folderTree = data.folderTree;
+                newState.folderTreeVersion = state.folderTreeVersion + 1;
+                newState.loadedFolders = new Set(['', '/']);
+                newState.expandedFolders = new Set();
+              } else {
+                // Update nested folder - create a new tree to ensure immutability
                 const updateNode = (nodes: FolderTreeNode[]): FolderTreeNode[] => {
                   return nodes.map(node => {
                     if (node.path === prefix.replace(/\/$/, '')) {
@@ -278,14 +285,18 @@ export const useFileBrowserStore = create<FileBrowserState>()(
                     return node;
                   });
                 };
-                return updateNode(tree);
-              });
-            }
-            
-            // Mark folder as loaded
-            const newLoadedFolders = new Set(loadedFolders);
-            newLoadedFolders.add(prefix);
-            set({ loadedFolders: newLoadedFolders });
+                
+                newState.folderTree = updateNode(state.folderTree);
+                newState.folderTreeVersion = state.folderTreeVersion + 1;
+                
+                // Mark folder as loaded (only for non-root updates)
+                const newLoadedFolders = new Set(state.loadedFolders);
+                newLoadedFolders.add(prefix);
+                newState.loadedFolders = newLoadedFolders;
+              }
+              
+              return newState;
+            });
           } else {
             toast.error('Failed to load folder tree');
           }
@@ -477,15 +488,6 @@ export const useFileBrowserStore = create<FileBrowserState>()(
               restorePath: restorePath,
               restoreSelection: selectedObjects
             });
-            
-            console.log('[renameObject] Set restore state - path:', restorePath, 'selection:', selectedObjects);
-            
-            // Force a browser refresh to ensure everything is in sync
-            console.log('[renameObject] Refreshing browser...');
-            setTimeout(() => {
-              window.location.reload();
-            }, 500); // Small delay to ensure state is saved
-            
             // No need for complex updates - browser will refresh
           } else {
             const error = await response.json();
