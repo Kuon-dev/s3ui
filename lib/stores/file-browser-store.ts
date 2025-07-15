@@ -69,8 +69,13 @@ interface FileBrowserState {
   restorePath: string | null;
   restoreSelection: string[];
   
-  // Track ongoing rename operations to prevent duplicate folders
-  renamingFolders: Map<string, string>; // oldPath -> newPath
+  // Track ongoing rename operations with rollback data
+  renamingFolders: Map<string, {
+    newPath: string;
+    previousTree: FolderTreeNode[];
+    previousExpanded: Set<string>;
+    previousObjects: Map<string, R2Object[]>;
+  }>;
   
   // File Operations
   loadObjects: (prefix?: string, forceRefresh?: boolean) => Promise<void>;
@@ -133,6 +138,8 @@ interface FileBrowserState {
   setObjects: (objects: R2Object[], path?: string) => void;
   setFolderTree: (tree: FolderTreeNode[]) => void;
   checkAndRestore: () => Promise<void>;
+  renameFolderInTree: (oldPath: string, newPath: string, newName: string) => void;
+  removeFolderFromTree: (folderPath: string) => void;
 }
 
 export const useFileBrowserStore = create<FileBrowserState>()(
@@ -274,18 +281,22 @@ export const useFileBrowserStore = create<FileBrowserState>()(
               if (prefix === '') {
                 // Root folder update - merge with existing tree to preserve loaded children
                 const mergeTree = (newNodes: FolderTreeNode[], oldNodes: FolderTreeNode[]): FolderTreeNode[] => {
-                  // Get the current renaming folders map
+                  // Check if any folders are being renamed
                   const renamingFolders = state.renamingFolders;
+                  const renamedPaths = new Map<string, string>();
                   
-                  // First, filter out old folders that are being renamed
-                  const filteredOldNodes = oldNodes.filter(oldNode => {
-                    // Check if this folder is being renamed (it's in the renamingFolders map as a key)
-                    const isBeingRenamed = renamingFolders.has(oldNode.path);
-                    return !isBeingRenamed;
+                  // Build a map of old path -> new path for active renames
+                  renamingFolders.forEach((data, oldPath) => {
+                    if (data) {
+                      renamedPaths.set(oldPath, data.newPath);
+                    }
                   });
                   
+                  // Filter out nodes that have been renamed (they'll appear with new name from server)
+                  const validOldNodes = oldNodes.filter(node => !renamedPaths.has(node.path));
+                  
                   return newNodes.map(newNode => {
-                    const oldNode = filteredOldNodes.find(n => n.path === newNode.path);
+                    const oldNode = validOldNodes.find(n => n.path === newNode.path);
                     if (oldNode && oldNode.children && oldNode.children.length > 0) {
                       // Preserve the loaded children from the old tree
                       return { ...newNode, children: oldNode.children };
@@ -300,9 +311,30 @@ export const useFileBrowserStore = create<FileBrowserState>()(
               } else {
                 // Update nested folder - create a new tree to ensure immutability
                 const updateNode = (nodes: FolderTreeNode[]): FolderTreeNode[] => {
+                  // Check for active renames
+                  const renamingFolders = state.renamingFolders;
+                  const renamedPaths = new Map<string, string>();
+                  
+                  renamingFolders.forEach((data, oldPath) => {
+                    if (data) {
+                      renamedPaths.set(oldPath, data.newPath);
+                    }
+                  });
+                  
                   return nodes.map(node => {
+                    // Skip nodes that are being renamed
+                    if (renamedPaths.has(node.path)) {
+                      return node;
+                    }
+                    
                     if (node.path === prefix.replace(/\/$/, '')) {
-                      return { ...node, children: data.folderTree };
+                      // Filter out renamed folders from children
+                      const filteredChildren = data.folderTree.filter(
+                        (child: FolderTreeNode) => !Array.from(renamedPaths.keys()).some(
+                          oldPath => child.path === oldPath
+                        )
+                      );
+                      return { ...node, children: filteredChildren };
                     } else if (node.children && node.children.length > 0) {
                       return { ...node, children: updateNode(node.children) };
                     }
@@ -498,16 +530,31 @@ export const useFileBrowserStore = create<FileBrowserState>()(
 
         const loadingKey = `rename-${oldKey}`;
         
-        // Track folder rename to prevent duplicate display
-        if (isFolder && !isMove) {
+        // Optimistic update for folders
+        if (isFolder) {
           const oldPath = normalizedOldKey.endsWith('/') ? normalizedOldKey.slice(0, -1) : normalizedOldKey;
           const newPath = normalizedNewKey.endsWith('/') ? normalizedNewKey.slice(0, -1) : normalizedNewKey;
+          const newName = newPath.split('/').pop() || newPath;
           
+          // Store the current tree state for potential rollback
+          const previousFolderTree = get().folderTree;
+          const previousExpandedFolders = get().expandedFolders;
+          const previousObjects = get().objects;
+          
+          // Immediately update the tree (optimistic update)
+          get().renameFolderInTree(oldPath, newPath, newName);
+          
+          // Track the rename operation with rollback data
           set(state => ({
-            renamingFolders: new Map(state.renamingFolders).set(oldPath, newPath)
+            renamingFolders: new Map(state.renamingFolders).set(oldPath, {
+              newPath,
+              previousTree: previousFolderTree,
+              previousExpanded: previousExpandedFolders,
+              previousObjects: previousObjects
+            })
           }));
           
-          console.log('[renameObject] Tracking folder rename:', oldPath, '->', newPath);
+          console.log('[renameObject] Optimistic rename:', oldPath, '->', newPath);
         }
         
         // Queue the operation to prevent race conditions
@@ -564,45 +611,61 @@ export const useFileBrowserStore = create<FileBrowserState>()(
               await emitFileRenamed(normalizedOldKey, normalizedNewKey);
             }
             
-            // Refresh current folder which will also expand the path
-            await get().refreshCurrentFolder();
-            
-            // If we updated the current path due to folder rename, navigate to it
-            if (restorePath !== currentPath) {
-              await get().navigateToFolder(restorePath);
-            }
-            
-            // Clear rename tracking after successful rename
-            if (isFolder && !isMove) {
+            // Handle folder rename success
+            if (isFolder) {
               const oldPath = normalizedOldKey.endsWith('/') ? normalizedOldKey.slice(0, -1) : normalizedOldKey;
               
+              // Clear rename tracking
               set(state => {
                 const newRenamingFolders = new Map(state.renamingFolders);
                 newRenamingFolders.delete(oldPath);
                 return { renamingFolders: newRenamingFolders };
               });
               
-              console.log('[renameObject] Cleared rename tracking for:', oldPath);
+              // If current path was affected by rename, navigate to new path
+              if (restorePath !== currentPath) {
+                await get().navigateToFolder(restorePath);
+              } else {
+                // Just refresh the current folder's objects
+                await get().loadObjects(currentPath, true);
+              }
+              
+              console.log('[renameObject] Rename confirmed by server');
+            } else {
+              // For files, refresh the current folder's objects
+              await get().loadObjects(currentPath, true);
             }
+            
+            console.log('[renameObject] Rename completed successfully');
           } else {
             const error = await response.json();
             throw new Error(error.message || (isMove ? 'Failed to move' : 'Failed to rename'));
           }
             } catch (error) {
+              // Rollback optimistic update on error
+              if (isFolder) {
+                const oldPath = normalizedOldKey.endsWith('/') ? normalizedOldKey.slice(0, -1) : normalizedOldKey;
+                const rollbackData = get().renamingFolders.get(oldPath);
+                
+                if (rollbackData) {
+                  // Rollback to previous state
+                  set(state => {
+                    const newRenamingFolders = new Map(state.renamingFolders);
+                    newRenamingFolders.delete(oldPath);
+                    return {
+                      folderTree: rollbackData.previousTree,
+                      expandedFolders: rollbackData.previousExpanded,
+                      objects: rollbackData.previousObjects,
+                      renamingFolders: newRenamingFolders
+                    };
+                  });
+                  
+                  console.log('[renameObject] Rolled back optimistic update due to error');
+                }
+              }
               throw error;
             } finally {
               get().setLoading(loadingKey, false);
-              
-              // Clear rename tracking on error
-              if (isFolder && !isMove) {
-                const oldPath = normalizedOldKey.endsWith('/') ? normalizedOldKey.slice(0, -1) : normalizedOldKey;
-                
-                set(state => {
-                  const newRenamingFolders = new Map(state.renamingFolders);
-                  newRenamingFolders.delete(oldPath);
-                  return { renamingFolders: newRenamingFolders };
-                });
-              }
             }
           },
           onError: (error) => {
@@ -687,7 +750,7 @@ export const useFileBrowserStore = create<FileBrowserState>()(
       },
       
       navigateToFolder: async (path: string) => {
-        const { loadFolderChildren, expandFolder, setCurrentPath, expandPathToFolder } = get();
+        const { loadFolderChildren, expandFolder, setCurrentPath, expandPathToFolder, loadedFolders } = get();
         
         // Set the current path (which also calls expandPathToFolder)
         setCurrentPath(path);
@@ -700,15 +763,25 @@ export const useFileBrowserStore = create<FileBrowserState>()(
           
           for (const part of parts) {
             pathSoFar = pathSoFar ? `${pathSoFar}/${part}` : part;
-            loadPromises.push(loadFolderChildren(pathSoFar, true));
+            const folderPath = pathSoFar + '/';
+            
+            // Only load if not already loaded
+            if (!loadedFolders.has(folderPath)) {
+              loadPromises.push(loadFolderChildren(pathSoFar));
+            }
           }
           
-          // Wait for all parent folders to be loaded
-          await Promise.all(loadPromises);
+          // Wait for any unloaded parent folders to be loaded
+          if (loadPromises.length > 0) {
+            await Promise.all(loadPromises);
+          }
         }
         
-        // Load the folder's children in the tree
-        await loadFolderChildren(path);
+        // Load the folder's children in the tree if not already loaded
+        const targetFolderPath = path ? path + '/' : '';
+        if (!loadedFolders.has(targetFolderPath)) {
+          await loadFolderChildren(path);
+        }
         
         // Expand the folder to show its children
         expandFolder(path);
@@ -1150,6 +1223,125 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         }));
       },
       setFolderTree: (tree) => set({ folderTree: tree }),
+      
+      // Rename a folder in the tree without full refresh
+      renameFolderInTree: (oldPath, newPath, newName) => {
+        set(state => {
+          const updateNodeInTree = (nodes: FolderTreeNode[]): FolderTreeNode[] => {
+            return nodes.map(node => {
+              if (node.path === oldPath) {
+                // Found the node to rename
+                return { ...node, path: newPath, name: newName };
+              } else if (node.children && node.children.length > 0) {
+                // Recursively update children
+                return { ...node, children: updateNodeInTree(node.children) };
+              }
+              return node;
+            });
+          };
+          
+          // Also update the expanded folders set if the renamed folder was expanded
+          const newExpandedFolders = new Set(state.expandedFolders);
+          if (newExpandedFolders.has(oldPath)) {
+            newExpandedFolders.delete(oldPath);
+            newExpandedFolders.add(newPath);
+          }
+          
+          // Update any child paths in expanded folders
+          const updatedExpandedFolders = new Set<string>();
+          newExpandedFolders.forEach(path => {
+            if (path.startsWith(oldPath + '/')) {
+              // This is a child of the renamed folder
+              const newChildPath = newPath + path.substring(oldPath.length);
+              updatedExpandedFolders.add(newChildPath);
+            } else {
+              updatedExpandedFolders.add(path);
+            }
+          });
+          
+          // Also update objects cache for any affected paths
+          const newObjects = new Map(state.objects);
+          const updatedObjects = new Map<string, R2Object[]>();
+          
+          newObjects.forEach((objects, path) => {
+            if (path === oldPath) {
+              // This is the renamed folder itself
+              updatedObjects.set(newPath, objects);
+            } else if (path.startsWith(oldPath + '/')) {
+              // This is a child of the renamed folder
+              const newChildPath = newPath + path.substring(oldPath.length);
+              updatedObjects.set(newChildPath, objects);
+            } else {
+              // Not affected by rename
+              updatedObjects.set(path, objects);
+            }
+          });
+          
+          return {
+            folderTree: updateNodeInTree(state.folderTree),
+            folderTreeVersion: state.folderTreeVersion + 1,
+            expandedFolders: updatedExpandedFolders,
+            objects: updatedObjects
+          };
+        });
+      },
+      
+      // Remove a folder from the tree
+      removeFolderFromTree: (folderPath) => {
+        set(state => {
+          const removeFromTree = (nodes: FolderTreeNode[]): FolderTreeNode[] => {
+            return nodes.filter(node => node.path !== folderPath).map(node => {
+              if (node.children && node.children.length > 0) {
+                return { ...node, children: removeFromTree(node.children) };
+              }
+              return node;
+            });
+          };
+          
+          // Also remove from expanded folders
+          const newExpandedFolders = new Set(state.expandedFolders);
+          newExpandedFolders.delete(folderPath);
+          
+          // Remove any child paths from expanded folders
+          const filteredExpandedFolders = new Set<string>();
+          newExpandedFolders.forEach(path => {
+            if (!path.startsWith(folderPath + '/')) {
+              filteredExpandedFolders.add(path);
+            }
+          });
+          
+          // Remove from loaded folders
+          const newLoadedFolders = new Set(state.loadedFolders);
+          newLoadedFolders.delete(folderPath + '/');
+          
+          // Remove any child paths from loaded folders
+          const filteredLoadedFolders = new Set<string>();
+          newLoadedFolders.forEach(path => {
+            const pathWithoutSlash = path.endsWith('/') ? path.slice(0, -1) : path;
+            if (!pathWithoutSlash.startsWith(folderPath + '/') && pathWithoutSlash !== folderPath) {
+              filteredLoadedFolders.add(path);
+            }
+          });
+          
+          // Remove from objects cache
+          const newObjects = new Map(state.objects);
+          const keysToRemove: string[] = [];
+          newObjects.forEach((_, key) => {
+            if (key === folderPath || key.startsWith(folderPath + '/')) {
+              keysToRemove.push(key);
+            }
+          });
+          keysToRemove.forEach(key => newObjects.delete(key));
+          
+          return {
+            folderTree: removeFromTree(state.folderTree),
+            folderTreeVersion: state.folderTreeVersion + 1,
+            expandedFolders: filteredExpandedFolders,
+            loadedFolders: filteredLoadedFolders,
+            objects: newObjects
+          };
+        });
+      },
       
       // Check and perform restore after refresh
       checkAndRestore: async () => {
