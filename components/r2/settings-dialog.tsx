@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { 
-  X, 
   Palette, 
   Eye, 
   MousePointer, 
@@ -18,12 +17,7 @@ import {
   Sparkles,
   HelpCircle,
   ChevronDown,
-  ChevronUp,
-  Settings2,
-  FolderIcon,
-  FileType,
-  Calendar,
-  HardDrive
+  Settings2
 } from 'lucide-react';
 import { 
   useUIStateStore,
@@ -43,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
+import { useTypography } from '@/lib/hooks/use-typography';
 import {
   Dialog,
   DialogContent,
@@ -57,18 +52,20 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { densityConfig, type UIDensityConfig } from '@/lib/spacing';
-import { springPresets, durationPresets } from '@/lib/animations';
+import { springPresets } from '@/lib/animations';
 
-type SettingsSection = 'appearance' | 'file-display' | 'behavior' | 'advanced';
+type SettingsSection = 'theme' | 'appearance' | 'file-display' | 'behavior' | 'advanced';
 
 const sectionIcons: Record<SettingsSection, React.ReactNode> = {
-  appearance: <Palette className="h-4 w-4" />,
+  theme: <Palette className="h-4 w-4" />,
+  appearance: <Settings2 className="h-4 w-4" />,
   'file-display': <Eye className="h-4 w-4" />,
   behavior: <MousePointer className="h-4 w-4" />,
   advanced: <Cog className="h-4 w-4" />,
 };
 
 const sectionLabels: Record<SettingsSection, string> = {
+  theme: 'Theme',
   appearance: 'Appearance',
   'file-display': 'File Display',
   behavior: 'Behavior',
@@ -94,12 +91,14 @@ const themeIcons: Record<Theme, React.ReactNode> = {
 };
 
 export function SettingsDialog() {
+  const typography = useTypography();
   const showSettings = useUIStateStore(state => state.showSettings);
   const setShowSettings = useUIStateStore(state => state.setShowSettings);
-  const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('theme');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['theme', 'accent', 'density']));
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['color-scheme', 'accent', 'density']));
   const uiDensity = useUIStateStore(state => state.uiDensity);
   
   const resetSettings = useUIStateStore(state => state.resetSettings);
@@ -141,13 +140,14 @@ export function SettingsDialog() {
               transition={springPresets.gentle}
             >
               <div className="p-6 pb-4 space-y-4">
-                <h2 className="text-xl font-semibold">Settings</h2>
+                <h2 className={typography.h2()}>Settings</h2>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
                     type="text"
                     placeholder="Search settings..."
-                    className="pl-10 h-10 bg-background/50"
+                    className="h-10 bg-background/50"
+                    style={{ paddingLeft: '36px' }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -161,7 +161,7 @@ export function SettingsDialog() {
                       key={section}
                       onClick={() => setActiveSection(section)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all",
+                        'w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all', typography.body(),
                         "hover:bg-muted/50",
                         activeSection === section && "bg-accent text-accent-foreground shadow-sm"
                       )}
@@ -206,11 +206,11 @@ export function SettingsDialog() {
                       <div className="p-2 rounded-lg bg-accent/10">
                         {sectionIcons[activeSection]}
                       </div>
-                      <DialogTitle className="text-2xl font-semibold">
+                      <DialogTitle className={typography.h2()}>
                         {sectionLabels[activeSection]}
                       </DialogTitle>
                     </div>
-                    <p className="text-sm text-muted-foreground ml-11">
+                    <p className={cn('ml-11', typography.caption())}>
                       Customize your experience
                     </p>
                   </div>
@@ -238,6 +238,14 @@ export function SettingsDialog() {
                           paddingBottom: density.spacing['3xl'],
                         }}
                       >
+                      {activeSection === 'theme' && (
+                        <ThemeSettings 
+                          onSettingChange={() => setHasChanges(true)}
+                          expandedSections={expandedSections}
+                          toggleSection={toggleSection}
+                          density={density}
+                        />
+                      )}
                       {activeSection === 'appearance' && (
                         <AppearanceSettings 
                           onSettingChange={() => setHasChanges(true)}
@@ -277,12 +285,12 @@ export function SettingsDialog() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2, ...springPresets.gentle }}
               >
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className={cn('flex items-center gap-3', typography.caption())}>
                   <div className="p-1.5 rounded-md bg-muted">
                     <Settings2 className="h-3.5 w-3.5" />
                   </div>
                   <span>Press</span>
-                  <kbd className="px-2 py-1 text-xs font-mono bg-muted/50 rounded border border-border/50">
+                  <kbd className={cn('px-2 py-1 font-mono bg-muted/50 rounded border border-border/50', typography.tiny())}>
                     ⌘ ,
                   </kbd>
                   <span>to open settings</span>
@@ -294,7 +302,7 @@ export function SettingsDialog() {
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
-                      className="flex items-center gap-2 text-sm"
+                      className={cn('flex items-center gap-2', typography.body())}
                     >
                       <motion.div
                         animate={{ rotate: 360 }}
@@ -333,6 +341,7 @@ function CollapsibleSection({
   density: UIDensityConfig['default'];
   icon?: React.ReactNode;
 }) {
+  const typography = useTypography();
   return (
     <motion.div
       className="border rounded-lg overflow-hidden"
@@ -350,11 +359,11 @@ function CollapsibleSection({
             {icon}
           </div>
           <div className="text-left">
-            <h3 className="font-medium text-base">
+            <h3 className={typography.h4()}>
               {title}
             </h3>
             {description && (
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className={cn('mt-0.5', typography.caption())}>
                 {description}
               </p>
             )}
@@ -388,8 +397,8 @@ function CollapsibleSection({
   );
 }
 
-// Enhanced Appearance Settings
-function AppearanceSettings({
+// Theme Settings - dedicated section for theme customization
+function ThemeSettings({
   onSettingChange,
   expandedSections,
   toggleSection,
@@ -400,25 +409,20 @@ function AppearanceSettings({
   toggleSection: (section: string) => void;
   density: UIDensityConfig['default'];
 }) {
+  const typography = useTypography();
   const theme = useUIStateStore(state => state.theme);
   const accentColor = useUIStateStore(state => state.accentColor);
-  const uiDensity = useUIStateStore(state => state.uiDensity);
-  const showAnimations = useUIStateStore(state => state.showAnimations);
-  const reduceMotion = useUIStateStore(state => state.reduceMotion);
   const setTheme = useUIStateStore(state => state.setTheme);
   const setAccentColor = useUIStateStore(state => state.setAccentColor);
-  const setUIDensity = useUIStateStore(state => state.setUIDensity);
-  const setShowAnimations = useUIStateStore(state => state.setShowAnimations);
-  const setReduceMotion = useUIStateStore(state => state.setReduceMotion);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* Theme Selection */}
       <CollapsibleSection
-        title="Theme"
-        description="Choose your preferred color scheme"
-        expanded={expandedSections.has('theme')}
-        onToggle={() => toggleSection('theme')}
+        title="Color Scheme"
+        description="Choose between light, dark, or system theme"
+        expanded={expandedSections.has('color-scheme')}
+        onToggle={() => toggleSection('color-scheme')}
         density={density}
         icon={themeIcons[theme]}
       >
@@ -451,7 +455,7 @@ function AppearanceSettings({
                 )}>
                   {themeIcons[themeOption]}
                 </div>
-                <span className="text-sm font-medium capitalize">{themeOption}</span>
+                <span className={cn('font-medium capitalize', typography.body())}>{themeOption}</span>
               </motion.label>
             ))}
           </RadioGroup>
@@ -525,7 +529,7 @@ function AppearanceSettings({
                 <p className="font-medium">
                   {accentColors.find(c => c.value === accentColor)?.label}
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className={typography.caption()}>
                   Your current accent color
                 </p>
               </div>
@@ -534,6 +538,81 @@ function AppearanceSettings({
         </div>
       </CollapsibleSection>
       
+      {/* Theme Customization Preview */}
+      <CollapsibleSection
+        title="Preview"
+        description="See how your theme looks with sample UI elements"
+        expanded={expandedSections.has('preview')}
+        onToggle={() => toggleSection('preview')}
+        density={density}
+        icon={<Eye className="h-5 w-5" />}
+      >
+        <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
+          {/* Sample buttons */}
+          <div className="space-y-2">
+            <p className={cn('font-medium mb-3', typography.label())}>Buttons</p>
+            <div className="flex gap-3">
+              <Button size="sm">Primary</Button>
+              <Button size="sm" variant="secondary">Secondary</Button>
+              <Button size="sm" variant="outline">Outline</Button>
+              <Button size="sm" variant="ghost">Ghost</Button>
+            </div>
+          </div>
+          
+          {/* Sample cards */}
+          <div className="space-y-2">
+            <p className={cn('font-medium mb-3', typography.label())}>Cards</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 rounded-lg border bg-background">
+                <h4 className={typography.h4()}>Card Title</h4>
+                <p className={typography.caption()}>This is a sample card with your theme.</p>
+              </div>
+              <div className="p-4 rounded-lg border bg-accent/10">
+                <h4 className={typography.h4()}>Accent Card</h4>
+                <p className={typography.caption()}>This uses your accent color.</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Sample form elements */}
+          <div className="space-y-2">
+            <p className={cn('font-medium mb-3', typography.label())}>Form Elements</p>
+            <div className="space-y-3">
+              <Input placeholder="Sample input field" className="max-w-sm" />
+              <div className="flex items-center gap-2">
+                <Switch id="sample-switch" />
+                <Label htmlFor="sample-switch" className={typography.label()}>Toggle switch</Label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CollapsibleSection>
+    </div>
+  );
+}
+
+// Enhanced Appearance Settings
+function AppearanceSettings({
+  onSettingChange,
+  expandedSections,
+  toggleSection,
+  density,
+}: { 
+  onSettingChange: () => void;
+  expandedSections: Set<string>;
+  toggleSection: (section: string) => void;
+  density: UIDensityConfig['default'];
+}) {
+  const typography = useTypography();
+  const uiDensity = useUIStateStore(state => state.uiDensity);
+  const showAnimations = useUIStateStore(state => state.showAnimations);
+  const reduceMotion = useUIStateStore(state => state.reduceMotion);
+  const setUIDensity = useUIStateStore(state => state.setUIDensity);
+  const setShowAnimations = useUIStateStore(state => state.setShowAnimations);
+  const setReduceMotion = useUIStateStore(state => state.setReduceMotion);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* UI Density with Visual Preview */}
       <CollapsibleSection
         title="Interface Density"
@@ -568,7 +647,7 @@ function AppearanceSettings({
                   <RadioGroupItem value={densityOption} id={densityOption} />
                   <div>
                     <p className="font-medium capitalize">{densityOption}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className={typography.caption()}>
                       {densityOption === 'compact' && 'More content visible'}
                       {densityOption === 'default' && 'Balanced spacing'}
                       {densityOption === 'spacious' && 'More breathing room'}
@@ -610,10 +689,10 @@ function AppearanceSettings({
               <Sparkles className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1">
-              <Label htmlFor="animations" className="text-base font-medium cursor-pointer">
+              <Label htmlFor="animations" className={cn('cursor-pointer', typography.label())}>
                 Enable Animations
               </Label>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className={cn('mt-0.5', typography.caption())}>
                 Smooth transitions and visual feedback
               </p>
             </div>
@@ -637,10 +716,10 @@ function AppearanceSettings({
               <HelpCircle className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1">
-              <Label htmlFor="reduce-motion" className="text-base font-medium cursor-pointer">
+              <Label htmlFor="reduce-motion" className={cn('cursor-pointer', typography.label())}>
                 Reduce Motion
               </Label>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className={cn('mt-0.5', typography.caption())}>
                 Minimize animations for accessibility
               </p>
             </div>
@@ -667,6 +746,7 @@ function FileDisplaySettings({
   onSettingChange: () => void;
   density: UIDensityConfig['default'];
 }) {
+  const typography = useTypography();
   const showFileExtensions = useUIStateStore(state => state.showFileExtensions);
   const dateFormat = useUIStateStore(state => state.dateFormat);
   const sizeFormat = useUIStateStore(state => state.sizeFormat);
@@ -689,10 +769,10 @@ function FileDisplaySettings({
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="file-extensions" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="file-extensions" className={cn('cursor-pointer', typography.label())}>
               Show File Extensions
             </Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn('mt-0.5', typography.caption())}>
               Display file extensions like .txt, .pdf
             </p>
           </div>
@@ -711,10 +791,10 @@ function FileDisplaySettings({
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="group-folders" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="group-folders" className={cn('cursor-pointer', typography.label())}>
               Group Folders First
             </Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn('mt-0.5', typography.caption())}>
               Show all folders before files
             </p>
           </div>
@@ -734,7 +814,7 @@ function FileDisplaySettings({
       {/* Format Settings */}
       <div className="space-y-4">
         <div>
-          <Label htmlFor="date-format" className="text-base font-medium mb-2 block">
+          <Label htmlFor="date-format" className={cn('mb-2 block', typography.label())}>
             Date Format
           </Label>
           <Select value={dateFormat} onValueChange={(value) => {
@@ -748,19 +828,19 @@ function FileDisplaySettings({
               <SelectItem value="relative">
                 <div className="flex items-center gap-2">
                   <span>Relative</span>
-                  <span className="text-xs text-muted-foreground">(2 hours ago)</span>
+                  <span className={typography.caption()}>(2 hours ago)</span>
                 </div>
               </SelectItem>
               <SelectItem value="short">
                 <div className="flex items-center gap-2">
                   <span>Short</span>
-                  <span className="text-xs text-muted-foreground">(Jan 15, 2025)</span>
+                  <span className={typography.caption()}>(Jan 15, 2025)</span>
                 </div>
               </SelectItem>
               <SelectItem value="long">
                 <div className="flex items-center gap-2">
                   <span>Long</span>
-                  <span className="text-xs text-muted-foreground">(January 15, 2025 at 3:30 PM)</span>
+                  <span className={typography.caption()}>(January 15, 2025 at 3:30 PM)</span>
                 </div>
               </SelectItem>
             </SelectContent>
@@ -768,7 +848,7 @@ function FileDisplaySettings({
         </div>
 
         <div>
-          <Label htmlFor="size-format" className="text-base font-medium mb-2 block">
+          <Label htmlFor="size-format" className={cn('mb-2 block', typography.label())}>
             File Size Format
           </Label>
           <Select value={sizeFormat} onValueChange={(value) => {
@@ -782,19 +862,19 @@ function FileDisplaySettings({
               <SelectItem value="auto">
                 <div className="flex items-center gap-2">
                   <span>Auto</span>
-                  <span className="text-xs text-muted-foreground">(KB, MB, GB)</span>
+                  <span className={typography.caption()}>(KB, MB, GB)</span>
                 </div>
               </SelectItem>
               <SelectItem value="bytes">
                 <div className="flex items-center gap-2">
                   <span>Bytes</span>
-                  <span className="text-xs text-muted-foreground">(1,234,567)</span>
+                  <span className={typography.caption()}>(1,234,567)</span>
                 </div>
               </SelectItem>
               <SelectItem value="decimal">
                 <div className="flex items-center gap-2">
                   <span>Decimal</span>
-                  <span className="text-xs text-muted-foreground">(1.23 MB)</span>
+                  <span className={typography.caption()}>(1.23 MB)</span>
                 </div>
               </SelectItem>
             </SelectContent>
@@ -811,10 +891,10 @@ function FileDisplaySettings({
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="show-thumbnails" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="show-thumbnails" className={cn('cursor-pointer', typography.label())}>
               Show Thumbnails
             </Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn('mt-0.5', typography.caption())}>
               Preview images in grid view
             </p>
           </div>
@@ -838,7 +918,7 @@ function FileDisplaySettings({
               className="space-y-3 px-4"
             >
               <div className="flex items-center justify-between">
-                <Label htmlFor="thumbnail-size" className="text-sm">
+                <Label htmlFor="thumbnail-size" className={typography.label()}>
                   Thumbnail Size
                 </Label>
                 <div className="flex items-center gap-2">
@@ -857,7 +937,7 @@ function FileDisplaySettings({
                     }}
                     className="w-20 h-8 text-center"
                   />
-                  <span className="text-sm text-muted-foreground">px</span>
+                  <span className={typography.caption()}>px</span>
                 </div>
               </div>
               <Slider
@@ -891,7 +971,7 @@ function FileDisplaySettings({
                     />
                   ))}
                 </div>
-                <span className="text-xs text-muted-foreground">Preview</span>
+                <span className={typography.caption()}>Preview</span>
               </div>
             </motion.div>
           )}
@@ -909,6 +989,7 @@ function BehaviorSettings({
   onSettingChange: () => void;
   density: UIDensityConfig['default'];
 }) {
+  const typography = useTypography();
   const confirmDelete = useUIStateStore(state => state.confirmDelete);
   const confirmBulkOperations = useUIStateStore(state => state.confirmBulkOperations);
   const doubleClickAction = useUIStateStore(state => state.doubleClickAction);
@@ -924,17 +1005,17 @@ function BehaviorSettings({
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* Confirmation Settings */}
       <div className="space-y-2">
-        <h3 className="text-lg font-medium mb-3">Confirmations</h3>
+        <h3 className={cn('mb-3', typography.h3())}>Confirmations</h3>
         
         <motion.div
           className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="confirm-delete" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="confirm-delete" className={cn('cursor-pointer', typography.label())}>
               Confirm Before Delete
             </Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn('mt-0.5', typography.caption())}>
               Ask for confirmation when deleting files
             </p>
           </div>
@@ -953,10 +1034,10 @@ function BehaviorSettings({
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="confirm-bulk" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="confirm-bulk" className={cn('cursor-pointer', typography.label())}>
               Confirm Bulk Operations
             </Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn('mt-0.5', typography.caption())}>
               Ask when performing actions on multiple files
             </p>
           </div>
@@ -975,9 +1056,9 @@ function BehaviorSettings({
 
       {/* Mouse Actions */}
       <div>
-        <h3 className="text-lg font-medium mb-3">Mouse Actions</h3>
+        <h3 className={cn('mb-3', typography.h3())}>Mouse Actions</h3>
         <div className="space-y-2">
-          <Label className="text-base">Double Click Action</Label>
+          <Label className={typography.label()}>Double Click Action</Label>
           <RadioGroup 
             value={doubleClickAction} 
             onValueChange={(value) => {
@@ -1023,7 +1104,7 @@ function BehaviorSettings({
 
       {/* Auto Refresh */}
       <div>
-        <Label htmlFor="auto-refresh" className="text-base font-medium mb-2 block">
+        <Label htmlFor="auto-refresh" className={cn('mb-2 block', typography.label())}>
           Auto Refresh Interval
         </Label>
         <Select value={String(autoRefreshInterval)} onValueChange={(value) => {
@@ -1051,7 +1132,7 @@ function BehaviorSettings({
         whileHover={{ x: 2 }}
       >
         <div>
-          <Label htmlFor="search-content" className="text-base font-medium cursor-pointer">
+          <Label htmlFor="search-content" className={cn('cursor-pointer', typography.label())}>
             Search File Contents
           </Label>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -1079,6 +1160,7 @@ function AdvancedSettings({
   onSettingChange: () => void;
   density: UIDensityConfig['default'];
 }) {
+  const typography = useTypography();
   const maxConcurrentUploads = useUIStateStore(state => state.maxConcurrentUploads);
   const uploadChunkSize = useUIStateStore(state => state.uploadChunkSize);
   const enableServiceWorker = useUIStateStore(state => state.enableServiceWorker);
@@ -1094,11 +1176,11 @@ function AdvancedSettings({
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* Upload Settings */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium mb-3">Upload Settings</h3>
+        <h3 className={cn('mb-3', typography.h3())}>Upload Settings</h3>
         
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label htmlFor="concurrent-uploads" className="text-sm">
+            <Label htmlFor="concurrent-uploads" className={typography.label()}>
               Max Concurrent Uploads
             </Label>
             <div className="flex items-center gap-2">
@@ -1134,7 +1216,7 @@ function AdvancedSettings({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label htmlFor="chunk-size" className="text-sm">
+            <Label htmlFor="chunk-size" className={typography.label()}>
               Upload Chunk Size
             </Label>
             <div className="flex items-center gap-2">
@@ -1152,7 +1234,7 @@ function AdvancedSettings({
                 }}
                 className="w-16 h-8 text-center"
               />
-              <span className="text-sm text-muted-foreground">MB</span>
+              <span className={typography.caption()}>MB</span>
             </div>
           </div>
           <Slider
@@ -1178,7 +1260,7 @@ function AdvancedSettings({
         whileHover={{ x: 2 }}
       >
         <div>
-          <Label htmlFor="service-worker" className="text-base font-medium cursor-pointer">
+          <Label htmlFor="service-worker" className={cn('cursor-pointer', typography.label())}>
             Enable Service Worker
           </Label>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -1204,10 +1286,10 @@ function AdvancedSettings({
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="cache-enabled" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="cache-enabled" className={cn('cursor-pointer', typography.label())}>
               Enable Cache
             </Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className={cn('mt-0.5', typography.caption())}>
               Cache file listings for better performance
             </p>
           </div>
@@ -1231,7 +1313,7 @@ function AdvancedSettings({
               className="space-y-3 px-4"
             >
               <div className="flex items-center justify-between">
-                <Label htmlFor="cache-duration" className="text-sm">
+                <Label htmlFor="cache-duration" className={typography.label()}>
                   Cache Duration
                 </Label>
                 <div className="flex items-center gap-2">
@@ -1250,7 +1332,7 @@ function AdvancedSettings({
                     }}
                     className="w-16 h-8 text-center"
                   />
-                  <span className="text-sm text-muted-foreground">minutes</span>
+                  <span className={typography.caption()}>minutes</span>
                 </div>
               </div>
               <Slider

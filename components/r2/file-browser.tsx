@@ -83,12 +83,14 @@ import { fileEventBus, type FileSystemEvent } from '@/lib/utils/file-event-bus';
 import { SettingsDialog } from './settings-dialog';
 import { useSetShowSettings } from '@/lib/stores/ui-state-store';
 import { useDensityClasses } from '@/lib/hooks/use-density-classes';
+import { useTypography } from '@/lib/hooks/use-typography';
 
 interface FileBrowserProps {
   initialPath?: string;
 }
 
 export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
+  const typography = useTypography();
   const {
     currentPath,
     searchQuery,
@@ -670,7 +672,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   </div>
                   <div className="space-y-1 w-full">
                     <button
-                      className="text-xs font-medium truncate w-full hover:text-primary transition-colors"
+                      className={cn(typography.body(), 'font-medium truncate w-full hover:text-primary transition-colors')}
                       onClick={async (e) => {
                         e.stopPropagation();
                         if (object.isFolder) {
@@ -764,7 +766,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   {getFileIconElement(object, 'md')}
                 </div>
                 <button
-                  className="text-left hover:underline truncate block flex-1 font-medium text-xs"
+                  className={cn('text-left hover:underline truncate block flex-1 font-medium', typography.body())}
                   onClick={async (e) => {
                     e.stopPropagation();
                     if (object.isFolder) {
@@ -783,7 +785,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               </div>
               
               {/* Column alignment matching headers */}
-              <div className="flex items-center gap-2 text-xs">
+              <div className={cn('flex items-center gap-2', typography.small())}>
                 {/* Type column - w-24 */}
                 <span className="w-20 text-muted-foreground truncate">
                   {object.isFolder ? 'Folder' : fileType.description}
@@ -963,7 +965,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
             {/* Header */}
             <div className="glass-subtle border-b px-3 py-2">
               {/* Breadcrumb Navigation */}
-              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+              <div className={cn('flex items-center gap-1 mb-2', typography.small('text-muted-foreground'))}>
                 <Tooltip content="Go to home" delayDuration={800}>
                   <Button
                     variant="ghost"
@@ -986,7 +988,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         const targetPath = pathParts.join('/');
                         await navigateToFolder(targetPath);
                       }}
-                      className="px-2 py-0.5 hover:bg-accent font-medium text-xs h-6"
+                      className={cn('px-2 py-0.5 hover:bg-accent font-medium h-6', typography.body())}
                     >
                       {part}
                     </Button>
@@ -998,12 +1000,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 max-w-md">
                   <div className="relative flex-1">
-                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <Input
                       placeholder="Search in current folder..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-7 h-7 bg-background/50 border-muted focus:bg-background transition-colors text-xs"
+                      className={cn('h-7 bg-background/50 border-muted focus:bg-background transition-colors', typography.body())}
+                      style={{ paddingLeft: '28px' }}
                     />
                   </div>
                   <Tooltip content="Search all folders" shortcut="⌘K">
@@ -1011,7 +1014,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       variant="outline"
                       size="sm"
                       onClick={() => setShowGlobalSearch(true)}
-                      className="px-2 h-7 border-muted hover:bg-accent text-xs"
+                      className={cn('px-2 h-7 border-muted hover:bg-accent', typography.button())}
                       aria-label="Global search"
                     >
                       <Search className="h-3 w-3 mr-1" />
@@ -1048,7 +1051,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                           aria-label={`Sort by ${sortBy} in ${sortOrder === 'asc' ? 'ascending' : 'descending'} order`}
                         >
                           <ArrowUpDown className="h-3 w-3" />
-                          <span className="text-xs font-medium">
+                          <span className={cn('font-medium', typography.button())}>
                             {sortBy === 'name' && 'Name'}
                             {sortBy === 'size' && 'Size'}
                             {sortBy === 'date' && 'Date'}
@@ -1158,14 +1161,14 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         animate={{ opacity: 1, scale: 1 }}
                         className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 rounded-lg"
                       >
-                        <span className="text-xs font-medium">
+                        <span className={cn('font-medium', typography.button())}>
                           {selectedItems.size} selected
                         </span>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => setSelectedItems(new Set())}
-                          className="h-5 px-1.5 text-xs"
+                          className={cn('h-5 px-1.5', typography.button())}
                         >
                           Clear
                         </Button>
@@ -1188,7 +1191,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       <Tooltip content="Upload files to current folder">
                         <Button
                           onClick={() => setShowUploadDialog(true)}
-                          className="h-7 px-2 active-scale shadow-soft hover:shadow-hover hover:bg-accent text-xs"
+                          className={cn('h-7 px-2 active-scale shadow-soft hover:shadow-hover hover:bg-accent', typography.button())}
                           aria-label="Upload files"
                         >
                           <Upload className="h-3 w-3 mr-1" />
@@ -1199,7 +1202,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         <Button
                           variant="outline"
                           onClick={() => setShowCreateFolderDialog(true)}
-                          className="h-7 px-2 active-scale border-muted hover:bg-accent text-xs"
+                          className={cn('h-7 px-2 active-scale border-muted hover:bg-accent', typography.button())}
                           aria-label="Create new folder"
                         >
                           <FolderPlus className="h-3 w-3 mr-1" />
@@ -1281,7 +1284,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       <motion.div 
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center px-2 py-1 mb-1 border-b border-border/50 text-xs text-muted-foreground sticky top-0 bg-background/95 backdrop-blur-sm z-20"
+                        className={cn('flex items-center px-2 py-1 mb-1 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur-sm z-20', typography.small('text-muted-foreground'))}
                       >
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <Checkbox
@@ -1322,7 +1325,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                             )}
                           </button>
                         </div>
-                        <div className="flex items-center gap-2 text-xs">
+                        <div className={cn('flex items-center gap-2', typography.small())}>
                           <button
                             className={`flex items-center gap-1 hover:text-foreground transition-colors w-20 ${sortBy === 'type' ? 'text-foreground font-medium' : ''}`}
                             onClick={() => {
@@ -1424,7 +1427,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                                 onClick={() => navigateToFolder(getParentPath(currentPath))}
                               >
                                 <FolderIcon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                                <span className={cn('group-hover:text-foreground transition-colors', typography.body('text-muted-foreground'))}>
                                   .. (Parent Folder)
                                 </span>
                                 <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
@@ -1441,7 +1444,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 }}
-                      className="flex items-center justify-between px-2 py-1.5 mt-2 border-t border-border/50 text-xs text-muted-foreground"
+                      className={cn('flex items-center justify-between px-2 py-1.5 mt-2 border-t border-border/50', typography.small('text-muted-foreground'))}
                     >
                       <div>
                         {selectedItems.size > 0 ? (
@@ -1541,11 +1544,11 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               <DialogTitle>File Conflicts Detected</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm">
+              <p className={typography.body()}>
                 The following {pasteConflicts.length} item(s) already exist in the destination:
               </p>
               <ScrollArea className="max-h-48">
-                <ul className="text-sm space-y-1">
+                <ul className={cn('space-y-1', typography.body())}>
                   {pasteConflicts.map((conflict, index) => (
                     <li key={index} className="text-muted-foreground">
                       • {conflict.item.name}
@@ -1553,7 +1556,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   ))}
                 </ul>
               </ScrollArea>
-              <p className="text-sm">
+              <p className={typography.body()}>
                 What would you like to do?
               </p>
             </div>

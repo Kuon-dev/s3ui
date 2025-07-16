@@ -17,6 +17,7 @@ import { useNavigationStore } from '@/lib/stores/navigation-store';
 import { useCommonFileOperations } from '@/lib/hooks/use-common-file-operations';
 import { toast } from 'sonner';
 import { fileEventBus } from '@/lib/utils/file-event-bus';
+import { useTypography } from '@/lib/hooks/use-typography';
 
 interface R2FileTreeProps {
   currentPath: string;
@@ -34,6 +35,7 @@ export interface TreeNode {
 }
 
 export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreeProps) {
+  const typography = useTypography();
   const { 
     folderTree,
     folderTreeVersion,
@@ -275,8 +277,9 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
             )}
           </motion.div>
           <span className={cn(
-            "truncate text-sm",
-            isActive && "text-accent-foreground"
+            'truncate',
+            typography.body(),
+            isActive && 'text-accent-foreground'
           )}>
             {node.path === '' ? 'Home' : node.name}
           </span>
@@ -332,16 +335,17 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
     <div className={cn("h-full flex flex-col file-tree-container", className)}>
       {/* Header */}
       <div className="p-grid-4 border-b border-border/50 glass-subtle">
-        <h2 className="text-sm font-semibold text-foreground mb-grid-3">Folders</h2>
+        <h2 className={cn('font-semibold text-foreground mb-grid-3', typography.h4())}>Folders</h2>
         
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Search folders..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-sm bg-background/50 border-muted focus:bg-background"
+            className={cn('h-8 bg-background/50 border-muted focus:bg-background', typography.body())}
+            style={{ paddingLeft: '30px' }}
           />
         </div>
       </div>
@@ -355,7 +359,7 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="text-center py-grid-8 text-muted-foreground text-sm"
+                className={cn('text-center py-grid-8 text-muted-foreground', typography.body())}
               >
                 No folders found
               </motion.div>
@@ -371,7 +375,7 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-sm hover:bg-accent/50"
+          className={cn('w-full justify-start hover:bg-accent/50', typography.button())}
           onClick={() => loadFolderTree('')}
         >
           <RefreshCw className="h-3.5 w-3.5 mr-2" />

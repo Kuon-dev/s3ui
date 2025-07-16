@@ -5,6 +5,8 @@ import { motion } from 'motion/react';
 import { Upload, FolderOpen, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { springPresets } from '@/lib/animations';
+import { useTypography } from '@/lib/hooks/use-typography';
+import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {
   type: 'empty-folder' | 'no-search-results' | 'error';
@@ -13,6 +15,7 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
+  const typography = useTypography();
   const configs = {
     'empty-folder': {
       icon: FolderOpen,
@@ -137,10 +140,10 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
         transition={{ delay: 0.2, ...springPresets.smooth }}
         className="space-y-grid-3 max-w-sm"
       >
-        <h3 className="text-xl font-semibold text-foreground">
+        <h3 className={cn('text-foreground', typography.h2())}>
           {config.title}
         </h3>
-        <p className="text-muted-foreground">
+        <p className={typography.caption()}>
           {config.description}
         </p>
       </motion.div>

@@ -1,0 +1,369 @@
+"use client"
+
+import React, { useState } from "react"
+import { Switch } from "@/components/ui/switch"
+import { Toggle } from "@/components/ui/toggle"
+import { RadioGroup, RadioGroupItem, RadioGroupItemWithLabel, RadioGroupCard } from "@/components/ui/radio-group"
+import { Heart, Star, Bell, Bookmark, Settings, Moon, Sun, Volume2, VolumeX, Palette, Layout, Type } from "lucide-react"
+import { motion } from "motion/react"
+
+export default function UIDemo() {
+  const [switch1, setSwitch1] = useState(false)
+  const [switch2, setSwitch2] = useState(true)
+  const [switch3, setSwitch3] = useState(false)
+  const [switch4, setSwitch4] = useState(true)
+  
+  const [darkMode, setDarkMode] = useState(false)
+  const [notifications, setNotifications] = useState(true)
+  const [sound, setSound] = useState(true)
+  
+  const [theme, setTheme] = useState("light")
+  const [density, setDensity] = useState("default")
+  const [fontSize, setFontSize] = useState("medium")
+
+  return (
+    <div className="min-h-screen bg-background p-8">
+      <div className="mx-auto max-w-4xl space-y-12">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-center space-y-2"
+        >
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Enhanced UI Components
+          </h1>
+          <p className="text-muted-foreground">
+            Minimalistic design with smooth animations and Mac-OS inspired spacing
+          </p>
+        </motion.div>
+
+        {/* Switch Components Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="space-y-6"
+        >
+          <h2 className="text-2xl font-semibold">Switch Components</h2>
+          
+          <div className="grid gap-8 p-8 rounded-xl bg-card shadow-sm border">
+            {/* Basic Switches */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Basic Switches</h3>
+              <div className="flex flex-wrap gap-8 items-center">
+                <Switch checked={switch1} onCheckedChange={setSwitch1} />
+                <Switch checked={switch2} onCheckedChange={setSwitch2} />
+                <Switch disabled />
+                <Switch disabled checked />
+              </div>
+            </div>
+
+            {/* Switches with Labels */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">With Labels</h3>
+              <div className="flex flex-wrap gap-8 items-center">
+                <Switch 
+                  checked={switch3} 
+                  onCheckedChange={setSwitch3}
+                  showLabels
+                  onLabel="Active"
+                  offLabel="Inactive"
+                />
+                <Switch 
+                  checked={switch4} 
+                  onCheckedChange={setSwitch4}
+                  showLabels
+                />
+              </div>
+            </div>
+
+            {/* Functional Examples */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Functional Examples</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    {darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                    <span className="font-medium">Dark Mode</span>
+                  </div>
+                  <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                </div>
+                
+                <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <Bell className="h-4 w-4" />
+                    <span className="font-medium">Notifications</span>
+                  </div>
+                  <Switch checked={notifications} onCheckedChange={setNotifications} />
+                </div>
+                
+                <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    {sound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                    <span className="font-medium">Sound Effects</span>
+                  </div>
+                  <Switch checked={sound} onCheckedChange={setSound} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Toggle Components Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="space-y-6"
+        >
+          <h2 className="text-2xl font-semibold">Toggle Components</h2>
+          
+          <div className="grid gap-8 p-8 rounded-xl bg-card shadow-sm border">
+            {/* Basic Toggles */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Basic Toggles</h3>
+              <div className="flex flex-wrap gap-4 items-center">
+                <Toggle>
+                  <Heart className="h-4 w-4" />
+                </Toggle>
+                <Toggle variant="outline">
+                  <Star className="h-4 w-4" />
+                </Toggle>
+                <Toggle variant="ghost">
+                  <Bell className="h-4 w-4" />
+                </Toggle>
+                <Toggle pressed>
+                  <Bookmark className="h-4 w-4" />
+                </Toggle>
+              </div>
+            </div>
+
+            {/* Different Sizes */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Size Variants</h3>
+              <div className="flex flex-wrap gap-4 items-center">
+                <Toggle size="sm">
+                  <Settings className="h-3 w-3" />
+                  Small
+                </Toggle>
+                <Toggle size="default">
+                  <Settings className="h-4 w-4" />
+                  Default
+                </Toggle>
+                <Toggle size="lg">
+                  <Settings className="h-5 w-5" />
+                  Large
+                </Toggle>
+                <Toggle size="icon">
+                  <Settings className="h-4 w-4" />
+                </Toggle>
+              </div>
+            </div>
+
+            {/* Without Ripple Effect */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Custom Behaviors</h3>
+              <div className="flex flex-wrap gap-4 items-center">
+                <Toggle showRipple={false}>
+                  No Ripple
+                </Toggle>
+                <Toggle disabled>
+                  Disabled
+                </Toggle>
+                <Toggle variant="outline" pressed disabled>
+                  Disabled Active
+                </Toggle>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Radio Group Components Section */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="space-y-6"
+        >
+          <h2 className="text-2xl font-semibold">Radio Group Components</h2>
+          
+          <div className="grid gap-8 p-8 rounded-xl bg-card shadow-sm border">
+            {/* Basic Radio Group */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Basic Radio Group</h3>
+              <RadioGroup value={theme} onValueChange={setTheme}>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="light" id="r1" />
+                    <label htmlFor="r1" className="text-sm font-medium cursor-pointer">
+                      Light
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="dark" id="r2" />
+                    <label htmlFor="r2" className="text-sm font-medium cursor-pointer">
+                      Dark
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="system" id="r3" />
+                    <label htmlFor="r3" className="text-sm font-medium cursor-pointer">
+                      System
+                    </label>
+                  </div>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Radio Group with Labels and Descriptions */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">With Labels & Descriptions</h3>
+              <RadioGroup value={density} onValueChange={setDensity} className="space-y-2">
+                <RadioGroupItemWithLabel
+                  value="compact"
+                  label="Compact"
+                  description="Reduced spacing for more content"
+                />
+                <RadioGroupItemWithLabel
+                  value="default"
+                  label="Default"
+                  description="Balanced spacing for readability"
+                />
+                <RadioGroupItemWithLabel
+                  value="spacious"
+                  label="Spacious"
+                  description="Extra spacing for a clean look"
+                />
+              </RadioGroup>
+            </div>
+
+            {/* Card Style Radio Group (Mac-OS Inspired) */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Card Style (Mac-OS Inspired)</h3>
+              <RadioGroup value={density} onValueChange={setDensity} className="grid gap-3">
+                <RadioGroupCard
+                  value="compact"
+                  title="Compact View"
+                  description="Maximize content density"
+                  icon={<Layout className="h-4 w-4" />}
+                />
+                <RadioGroupCard
+                  value="default"
+                  title="Default View"
+                  description="Optimal balance of content and whitespace"
+                  icon={<Layout className="h-4 w-4" />}
+                />
+                <RadioGroupCard
+                  value="spacious"
+                  title="Spacious View"
+                  description="Enhanced readability with generous spacing"
+                  icon={<Layout className="h-4 w-4" />}
+                />
+              </RadioGroup>
+            </div>
+
+            {/* Icon Radio Group */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Icon Radio Group</h3>
+              <RadioGroup value={fontSize} onValueChange={setFontSize}>
+                <div className="flex gap-6">
+                  <div className="flex flex-col items-center gap-2">
+                    <RadioGroupItem value="small" id="fs1" />
+                    <label htmlFor="fs1" className="flex flex-col items-center gap-1 cursor-pointer">
+                      <Type className="h-3 w-3" />
+                      <span className="text-xs font-medium">Small</span>
+                    </label>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <RadioGroupItem value="medium" id="fs2" />
+                    <label htmlFor="fs2" className="flex flex-col items-center gap-1 cursor-pointer">
+                      <Type className="h-4 w-4" />
+                      <span className="text-xs font-medium">Medium</span>
+                    </label>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <RadioGroupItem value="large" id="fs3" />
+                    <label htmlFor="fs3" className="flex flex-col items-center gap-1 cursor-pointer">
+                      <Type className="h-5 w-5" />
+                      <span className="text-xs font-medium">Large</span>
+                    </label>
+                  </div>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Disabled State */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Disabled State</h3>
+              <RadioGroup value="option1" disabled>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="option1" id="d1" />
+                    <label htmlFor="d1" className="text-sm font-medium cursor-not-allowed opacity-50">
+                      Option 1
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="option2" id="d2" />
+                    <label htmlFor="d2" className="text-sm font-medium cursor-not-allowed opacity-50">
+                      Option 2
+                    </label>
+                  </div>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Animation Details */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="space-y-6"
+        >
+          <h2 className="text-2xl font-semibold">Design Principles</h2>
+          
+          <div className="grid gap-6 p-8 rounded-xl bg-card shadow-sm border">
+            <div className="space-y-2">
+              <h3 className="font-medium">🎯 4-Point Grid System</h3>
+              <p className="text-sm text-muted-foreground">
+                All spacing follows multiples of 4px for consistent visual rhythm
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-medium">✨ Smooth Animations</h3>
+              <p className="text-sm text-muted-foreground">
+                Spring physics for natural movement, carefully tuned easing functions
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-medium">🍎 Mac-OS Inspired</h3>
+              <p className="text-sm text-muted-foreground">
+                Clean aesthetics with appropriate spacing that feels spacious yet purposeful
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-medium">♿ Accessible</h3>
+              <p className="text-sm text-muted-foreground">
+                Focus states, keyboard navigation, and ARIA attributes for all users
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-medium">🎨 Consistent Feedback</h3>
+              <p className="text-sm text-muted-foreground">
+                Hover states, active states, and visual feedback for every interaction
+              </p>
+            </div>
+          </div>
+        </motion.section>
+      </div>
+    </div>
+  )
+}
