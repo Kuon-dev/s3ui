@@ -8,11 +8,7 @@ import {
   MousePointer, 
   Cog, 
   RotateCcw, 
-  Check,
   Search,
-  Moon,
-  Sun,
-  Monitor,
   ChevronRight,
   Sparkles,
   HelpCircle,
@@ -21,8 +17,6 @@ import {
 } from 'lucide-react';
 import { 
   useUIStateStore,
-  type AccentColor,
-  type Theme,
   type UIDensity,
   type DateFormat,
   type SizeFormat
@@ -53,6 +47,8 @@ import {
 } from '@/components/ui/tooltip';
 import { densityConfig, type UIDensityConfig } from '@/lib/spacing';
 import { springPresets } from '@/lib/animations';
+import { ThemeSelector } from './theme-selector';
+import { useThemeStore } from '@/lib/stores/theme-store';
 
 type SettingsSection = 'theme' | 'appearance' | 'file-display' | 'behavior' | 'advanced';
 
@@ -72,23 +68,6 @@ const sectionLabels: Record<SettingsSection, string> = {
   advanced: 'Advanced',
 };
 
-const accentColors: { value: AccentColor; label: string; color: string }[] = [
-  { value: 'blue', label: 'Ocean Blue', color: 'oklch(0.75 0.15 240)' },
-  { value: 'purple', label: 'Royal Purple', color: 'oklch(0.75 0.15 280)' },
-  { value: 'pink', label: 'Sakura Pink', color: 'oklch(0.75 0.15 340)' },
-  { value: 'red', label: 'Ruby Red', color: 'oklch(0.75 0.15 25)' },
-  { value: 'orange', label: 'Sunset Orange', color: 'oklch(0.75 0.15 60)' },
-  { value: 'yellow', label: 'Golden Yellow', color: 'oklch(0.75 0.15 90)' },
-  { value: 'green', label: 'Forest Green', color: 'oklch(0.75 0.15 150)' },
-  { value: 'teal', label: 'Teal Mist', color: 'oklch(0.75 0.15 180)' },
-  { value: 'cyan', label: 'Arctic Cyan', color: 'oklch(0.75 0.15 200)' }
-];
-
-const themeIcons: Record<Theme, React.ReactNode> = {
-  light: <Sun className="h-5 w-5" />,
-  dark: <Moon className="h-5 w-5" />,
-  system: <Monitor className="h-5 w-5" />,
-};
 
 export function SettingsDialog() {
   const typography = useTypography();
@@ -98,7 +77,7 @@ export function SettingsDialog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['color-scheme', 'accent', 'density']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['density']));
   const uiDensity = useUIStateStore(state => state.uiDensity);
   
   const resetSettings = useUIStateStore(state => state.resetSettings);
@@ -410,181 +389,23 @@ function ThemeSettings({
   density: UIDensityConfig['default'];
 }) {
   const typography = useTypography();
-  const theme = useUIStateStore(state => state.theme);
-  const accentColor = useUIStateStore(state => state.accentColor);
-  const setTheme = useUIStateStore(state => state.setTheme);
-  const setAccentColor = useUIStateStore(state => state.setAccentColor);
-
+  
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* Theme Selection */}
-      <CollapsibleSection
-        title="Color Scheme"
-        description="Choose between light, dark, or system theme"
-        expanded={expandedSections.has('color-scheme')}
-        onToggle={() => toggleSection('color-scheme')}
-        density={density}
-        icon={themeIcons[theme]}
-      >
-        <div className="p-4 bg-muted/30 rounded-lg">
-          <RadioGroup 
-            value={theme} 
-            onValueChange={(value) => {
-              setTheme(value as Theme);
-              onSettingChange();
-            }}
-            className="grid grid-cols-3 gap-4"
-          >
-            {(Object.keys(themeIcons) as Theme[]).map((themeOption) => (
-              <motion.label
-                key={themeOption}
-                htmlFor={themeOption}
-                className={cn(
-                  "relative flex flex-col items-center gap-3 p-6 rounded-xl border-2 cursor-pointer transition-all",
-                  theme === themeOption 
-                    ? "border-accent bg-accent/10 shadow-sm" 
-                    : "border-border hover:border-muted-foreground/50 bg-background/50"
-                )}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <RadioGroupItem value={themeOption} id={themeOption} className="sr-only" />
-                <div className={cn(
-                  "p-3 rounded-full transition-colors",
-                  theme === themeOption ? "bg-accent text-accent-foreground" : "bg-muted"
-                )}>
-                  {themeIcons[themeOption]}
-                </div>
-                <span className={cn('font-medium capitalize', typography.body())}>{themeOption}</span>
-              </motion.label>
-            ))}
-          </RadioGroup>
-        </div>
-      </CollapsibleSection>
+      <ThemeSelector />
       
-      {/* Accent Color */}
+      {/* Additional Theme Settings */}
       <CollapsibleSection
-        title="Accent Color"
-        description="Personalize your interface with a splash of color"
-        expanded={expandedSections.has('accent')}
-        onToggle={() => toggleSection('accent')}
+        title="Theme Options"
+        description="Fine-tune your theme preferences"
+        expanded={expandedSections.has('theme-options')}
+        onToggle={() => toggleSection('theme-options')}
         density={density}
-        icon={<Palette className="h-5 w-5" />}
+        icon={<Settings2 className="h-5 w-5" />}
       >
-        <div className="space-y-6">
-          <div className="p-4 bg-muted/30 rounded-lg">
-            <div className="grid grid-cols-9 gap-3">
-              {accentColors.map((color) => (
-                <Tooltip key={color.value}>
-                  <TooltipTrigger asChild>
-                    <motion.button
-                      onClick={() => {
-                        setAccentColor(color.value);
-                        onSettingChange();
-                      }}
-                      className={cn(
-                        "h-12 w-12 rounded-xl ring-2 ring-offset-2 ring-offset-background transition-all relative",
-                        accentColor === color.value
-                          ? "ring-accent shadow-lg"
-                          : "ring-transparent hover:ring-muted-foreground/30"
-                      )}
-                      style={{ backgroundColor: color.color }}
-                      whileHover={{ scale: 1.1, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={springPresets.bouncy}
-                    >
-                      {accentColor === color.value && (
-                        <motion.div 
-                          className="absolute inset-0 flex items-center justify-center"
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={springPresets.bouncy}
-                        >
-                          <Check className="h-5 w-5 text-white drop-shadow-md" />
-                        </motion.div>
-                      )}
-                    </motion.button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{color.label}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          </div>
-          
-          {/* Color Preview */}
-          <motion.div
-            className="p-4 rounded-lg border bg-accent/10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-          >
-            <div className="flex items-center gap-3">
-              <div 
-                className="h-12 w-12 rounded-lg"
-                style={{ backgroundColor: accentColors.find(c => c.value === accentColor)?.color }}
-              />
-              <div>
-                <p className="font-medium">
-                  {accentColors.find(c => c.value === accentColor)?.label}
-                </p>
-                <p className={typography.caption()}>
-                  Your current accent color
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </CollapsibleSection>
-      
-      {/* Theme Customization Preview */}
-      <CollapsibleSection
-        title="Preview"
-        description="See how your theme looks with sample UI elements"
-        expanded={expandedSections.has('preview')}
-        onToggle={() => toggleSection('preview')}
-        density={density}
-        icon={<Eye className="h-5 w-5" />}
-      >
-        <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-          {/* Sample buttons */}
-          <div className="space-y-2">
-            <p className={cn('font-medium mb-3', typography.label())}>Buttons</p>
-            <div className="flex gap-3">
-              <Button size="sm">Primary</Button>
-              <Button size="sm" variant="secondary">Secondary</Button>
-              <Button size="sm" variant="outline">Outline</Button>
-              <Button size="sm" variant="ghost">Ghost</Button>
-            </div>
-          </div>
-          
-          {/* Sample cards */}
-          <div className="space-y-2">
-            <p className={cn('font-medium mb-3', typography.label())}>Cards</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-4 rounded-lg border bg-background">
-                <h4 className={typography.h4()}>Card Title</h4>
-                <p className={typography.caption()}>This is a sample card with your theme.</p>
-              </div>
-              <div className="p-4 rounded-lg border bg-accent/10">
-                <h4 className={typography.h4()}>Accent Card</h4>
-                <p className={typography.caption()}>This uses your accent color.</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Sample form elements */}
-          <div className="space-y-2">
-            <p className={cn('font-medium mb-3', typography.label())}>Form Elements</p>
-            <div className="space-y-3">
-              <Input placeholder="Sample input field" className="max-w-sm" />
-              <div className="flex items-center gap-2">
-                <Switch id="sample-switch" />
-                <Label htmlFor="sample-switch" className={typography.label()}>Toggle switch</Label>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-4">
+          <p className={cn(typography.body(), 'text-muted-foreground')}>Additional theme customization options coming soon.</p>
         </div>
       </CollapsibleSection>
     </div>
