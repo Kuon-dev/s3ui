@@ -26,6 +26,7 @@ import {
   FileType,
   RefreshCw,
   FolderIcon,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -79,6 +80,9 @@ import { TooltipWrapper as Tooltip } from '@/components/ui/tooltip-wrapper';
 import { getParentPath } from '@/lib/utils/path';
 import { cn } from '@/lib/utils';
 import { fileEventBus, type FileSystemEvent } from '@/lib/utils/file-event-bus';
+import { SettingsDialog } from './settings-dialog';
+import { useSetShowSettings } from '@/lib/stores/ui-state-store';
+import { useDensityClasses } from '@/lib/hooks/use-density-classes';
 
 interface FileBrowserProps {
   initialPath?: string;
@@ -136,6 +140,8 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   const [pasteConflicts, setPasteConflicts] = React.useState<Array<{item: {key: string; name: string; isFolder: boolean}; existingKey: string}>>([]);
   const [showConflictDialog, setShowConflictDialog] = React.useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = React.useState(false);
+  const setShowSettings = useSetShowSettings();
+  const densityClasses = useDensityClasses();
   
   // Debug logging
   React.useEffect(() => {
@@ -465,6 +471,12 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         setSelectedItems(allKeys);
       }
       
+      // Settings (Ctrl/Cmd + ,)
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        setShowSettings(true);
+      }
+      
       // Refresh (F5)
       if (e.key === 'F5') {
         e.preventDefault();
@@ -474,7 +486,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedObject, hasClipboardItems, currentPath, canPaste, handleCopy, handleBulkCopy, handlePaste, setShowGlobalSearch, selectedItems, sortedObjects, refreshCurrentFolder]);
+  }, [selectedObject, hasClipboardItems, currentPath, canPaste, handleCopy, handleBulkCopy, handlePaste, setShowGlobalSearch, selectedItems, sortedObjects, refreshCurrentFolder, setShowSettings]);
 
   const getBreadcrumbs = () => {
     if (!currentPath) return [];
@@ -626,7 +638,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
             <ContextMenuTrigger asChild>
               <div
                 className={`
-                  group relative p-2.5 rounded-lg border border-border/50 
+                  group relative ${densityClasses.gridItemPadding} ${densityClasses.borderRadius} border border-border/50 
                   hover:border-primary/50 hover:shadow-soft transition-all duration-200
                   ${isInClipboard ? 'ring-2 ring-primary/30 bg-primary/5' : 'bg-card'}
                   ${isCut ? 'opacity-50' : ''}
@@ -1219,6 +1231,19 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       </motion.div>
                     )}
                   </AnimatePresence>
+                  
+                  {/* Settings Button */}
+                  <Tooltip content="Open settings" shortcut="⌘,">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSettings(true)}
+                      className="h-7 px-2 border-muted hover:bg-accent"
+                      aria-label="Settings"
+                    >
+                      <Settings className="h-3 w-3" />
+                    </Button>
+                  </Tooltip>
                 </div>
               </div>
             </div>
@@ -1373,7 +1398,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                     )}
 
                     {/* File List */}
-                    <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5' : 'space-y-0.5'}>
+                    <div className={viewMode === 'grid' ? densityClasses.gridCols : 'space-y-0.5'}>
                       <AnimatePresence mode="popLayout">
                         {/* Parent Folder Drop Zone - only show if not in root */}
                         {currentPath && (
@@ -1584,6 +1609,9 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
           refreshCurrentFolder();
         }}
       />
+      
+      {/* Settings Dialog */}
+      <SettingsDialog />
       
     </div>
   );

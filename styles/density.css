@@ -1,0 +1,209 @@
+/* Density-aware styles using CSS variables */
+
+/* Button sizes */
+.btn,
+.button,
+button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.btn-sm,
+.button-sm,
+button[data-size="sm"] {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.btn-lg,
+.button-lg,
+button[data-size="lg"] {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-lg);
+}
+
+/* Input and form controls */
+.input,
+input,
+textarea,
+select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  border-radius: var(--radius-md);
+}
+
+/* Card and panel spacing */
+.card,
+.panel {
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+}
+
+.card-header,
+.panel-header {
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin: calc(var(--spacing-lg) * -1);
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Dialog and modal spacing */
+.dialog-content,
+.modal-content {
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg);
+}
+
+.dialog-header,
+.modal-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.dialog-footer,
+.modal-footer {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid oklch(0.9 0.01 0 / 0.1);
+}
+
+/* Table spacing */
+table {
+  font-size: var(--font-size-base);
+}
+
+th,
+td {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+/* List items */
+.list-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-md);
+}
+
+/* Grid spacing */
+.grid-compact {
+  gap: var(--spacing-xs);
+}
+
+.grid-default {
+  gap: var(--spacing-sm);
+}
+
+.grid-spacious {
+  gap: var(--spacing-md);
+}
+
+/* File browser specific */
+.file-grid-item {
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+}
+
+.file-list-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+/* Sidebar spacing */
+.sidebar {
+  padding: var(--spacing-lg);
+}
+
+.sidebar-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-md);
+}
+
+/* Dropdown menu */
+.dropdown-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+}
+
+/* Tooltip */
+.tooltip-content {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-sm);
+}
+
+/* Animations based on density */
+.density-compact {
+  --animation-duration: 150ms;
+  --animation-scale: 0.98;
+}
+
+.density-default {
+  --animation-duration: 200ms;
+  --animation-scale: 0.95;
+}
+
+.density-spacious {
+  --animation-duration: 250ms;
+  --animation-scale: 0.92;
+}
+
+/* Hover states */
+.interactive-element:hover {
+  transform: scale(1.02);
+  transition-duration: var(--animation-duration);
+}
+
+.interactive-element:active {
+  transform: scale(var(--animation-scale));
+}
+
+/* Focus states */
+:focus-visible {
+  outline: 2px solid oklch(var(--accent));
+  outline-offset: calc(var(--spacing-xs) / 2);
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar styling based on density */
+.density-compact ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.density-default ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.density-spacious ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: oklch(0.95 0.01 0 / 0.05);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0.01 0 / 0.2);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.6 0.01 0 / 0.3);
+}
+
+/* Responsive density adjustments */
+@media (max-width: 768px) {
+  /* On mobile, slightly reduce spacing for all densities */
+  :root {
+    --spacing-xs: calc(var(--spacing-xs) * 0.9);
+    --spacing-sm: calc(var(--spacing-sm) * 0.9);
+    --spacing-md: calc(var(--spacing-md) * 0.9);
+    --spacing-lg: calc(var(--spacing-lg) * 0.9);
+    --spacing-xl: calc(var(--spacing-xl) * 0.9);
+  }
+}
