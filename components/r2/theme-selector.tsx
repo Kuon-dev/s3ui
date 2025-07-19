@@ -5,7 +5,6 @@ import React, { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Theme, useThemeStore } from "@/lib/stores/theme-store";
 import { cn } from "@/lib/utils";
 import { useTypography } from "@/lib/hooks/use-typography";
@@ -187,50 +186,39 @@ export const ThemeSelector = React.memo(() => {
       </div>
 
       {/* Theme Grid */}
-      <div className="pr-2">
-        <RadioGroup
-          className="space-y-6"
-          value={currentTheme}
-          onValueChange={setTheme}
-        >
-          {groupedThemes.map(([category, categoryThemes]) => (
-            <div key={category} className="space-y-3">
-              {/* Category header */}
-              <h4 className={cn("capitalize", typography.label())}>
-                {category}
-              </h4>
-              
-              {/* Themes in category */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {categoryThemes.map((theme) => (
-                  <motion.label
+      <div className="pr-2 space-y-6">
+        {groupedThemes.map(([category, categoryThemes]) => (
+          <div key={category} className="space-y-3">
+            {/* Category header */}
+            <h4 className={cn("capitalize", typography.label())}>
+              {category}
+            </h4>
+            
+            {/* Themes in category */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {categoryThemes.map((theme) => (
+                <motion.div
+                  className={cn(
+                    "relative group cursor-pointer",
+                    "transition-all duration-300",
+                  )}
+                  key={theme.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={springPresets.smooth}
+                  onClick={() => setTheme(theme.id)}
+                >
+                  <motion.div
                     className={cn(
-                      "relative group cursor-pointer",
-                      "transition-all duration-300",
+                      "p-4 rounded-xl border transition-all duration-300",
+                      currentTheme === theme.id
+                        ? "bg-accent/20 border-primary/50 shadow-lg"
+                        : "bg-card border-border hover:bg-accent/10 hover:border-primary/30",
                     )}
-                    htmlFor={`theme-${theme.id}`}
-                    key={theme.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={springPresets.smooth}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={springPresets.gentle}
                   >
-                    <RadioGroupItem
-                      className="sr-only"
-                      id={`theme-${theme.id}`}
-                      value={theme.id}
-                    />
-
-                    <motion.div
-                      className={cn(
-                        "p-4 rounded-xl border transition-all duration-300",
-                        currentTheme === theme.id
-                          ? "bg-accent/20 border-primary/50 shadow-lg"
-                          : "bg-card border-border hover:bg-accent/10 hover:border-primary/30",
-                      )}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      transition={springPresets.gentle}
-                    >
                       {/* Theme info */}
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-2">
@@ -276,13 +264,12 @@ export const ThemeSelector = React.memo(() => {
                           </div>
                         )}
                       </div>
-                    </motion.div>
-                  </motion.label>
-                ))}
-              </div>
+                  </motion.div>
+                </motion.div>
+              ))}
             </div>
-          ))}
-        </RadioGroup>
+          </div>
+        ))}
 
         {/* No results message */}
         {filteredThemes.length === 0 && (
