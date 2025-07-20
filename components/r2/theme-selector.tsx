@@ -136,24 +136,9 @@ export const ThemeSelector = React.memo(() => {
       return searchQuery === ""
         || theme.name.toLowerCase().includes(query)
         || (theme.description && theme.description.toLowerCase().includes(query))
-        || (theme.tags && theme.tags.some((tag) => tag.toLowerCase().includes(query)))
-        || (theme.category && theme.category.toLowerCase().includes(query));
+        || (theme.tags && theme.tags.some((tag) => tag.toLowerCase().includes(query)));
     });
   }, [themes, searchQuery]);
-
-  // Group themes by category
-  const groupedThemes = useMemo(() => {
-    const groups = filteredThemes.reduce((acc, theme) => {
-      const category = theme.category || 'other';
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(theme);
-      return acc;
-    }, {} as Record<string, Theme[]>);
-
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredThemes]);
 
   return (
     <div className="space-y-4">
@@ -186,17 +171,9 @@ export const ThemeSelector = React.memo(() => {
       </div>
 
       {/* Theme Grid */}
-      <div className="pr-2 space-y-6">
-        {groupedThemes.map(([category, categoryThemes]) => (
-          <div key={category} className="space-y-3">
-            {/* Category header */}
-            <h4 className={cn("capitalize", typography.label())}>
-              {category}
-            </h4>
-            
-            {/* Themes in category */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {categoryThemes.map((theme) => (
+      <div className="pr-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredThemes.map((theme) => (
                 <motion.div
                   className={cn(
                     "relative group cursor-pointer",
@@ -266,10 +243,8 @@ export const ThemeSelector = React.memo(() => {
                       </div>
                   </motion.div>
                 </motion.div>
-              ))}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
         {/* No results message */}
         {filteredThemes.length === 0 && (
