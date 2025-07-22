@@ -11,6 +11,7 @@ This documentation provides comprehensive technical information about the Cloudf
 - **[API Reference](./API_REFERENCE.md)** - Complete API documentation with endpoints, types, and examples
 - **[Development Guide](./DEVELOPMENT_GUIDE.md)** - Setup instructions, coding standards, and contribution guidelines
 - **[Theme System](./THEME_SYSTEM.md)** - Advanced theming with OKLCH color space and pre-built themes
+- **[i18n Guide](./i18n-guide.md)** - Internationalization implementation and usage guide
 
 ### 🏗️ Architecture Highlights
 
@@ -37,6 +38,7 @@ This documentation provides comprehensive technical information about the Cloudf
 
 #### Key Features
 - **Windows Explorer-style Interface** with dual-pane layout
+- **Internationalization (i18n)** - Support for 6 languages (EN, ES, FR, DE, JA, ZH)
 - **Advanced Theme System** - 12 pre-built themes with runtime switching
 - **Enhanced Drag & Drop** - Multi-item support with visual feedback
 - **Unified Context Menu** - Consistent operations across tree and table views

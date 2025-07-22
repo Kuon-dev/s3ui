@@ -2,6 +2,7 @@
 
 import { Check, Palette, Search } from "lucide-react";
 import React, { useMemo, useState } from "react";
+import { useTranslations } from 'next-intl';
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ const ThemePreview = React.memo(({
   isSelected: boolean;
   theme: Theme;
 }) => {
+  const t = useTranslations();
   const preview = theme.preview || {
     accent: theme.colors.accent,
     primary: theme.colors.primary,
@@ -99,21 +101,21 @@ const ThemePreview = React.memo(({
         <motion.div
           className="w-6 h-6 rounded-full border border-border/50"
           style={{ backgroundColor: preview.primary }}
-          title="Primary"
+          title={t('themeSelector.primary')}
           whileHover={{ scale: 1.1 }}
           transition={springPresets.gentle}
         />
         <motion.div
           className="w-6 h-6 rounded-full border border-border/50"
           style={{ backgroundColor: preview.secondary }}
-          title="Secondary"
+          title={t('themeSelector.secondary')}
           whileHover={{ scale: 1.1 }}
           transition={springPresets.gentle}
         />
         <motion.div
           className="w-6 h-6 rounded-full border border-border/50"
           style={{ backgroundColor: preview.accent }}
-          title="Accent"
+          title={t('themeSelector.accent')}
           whileHover={{ scale: 1.1 }}
           transition={springPresets.gentle}
         />
@@ -125,6 +127,7 @@ const ThemePreview = React.memo(({
 ThemePreview.displayName = "ThemePreview";
 
 export const ThemeSelector = React.memo(() => {
+  const t = useTranslations();
   const typography = useTypography();
   const { currentTheme, setTheme, themes } = useThemeStore();
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,10 +151,10 @@ export const ThemeSelector = React.memo(() => {
           <div className="p-1.5 bg-primary/10 rounded-md">
             <Palette className="w-4 h-4 text-primary" />
           </div>
-          Color Themes
+          {t('themeSelector.title')}
         </h3>
         <p className={cn("mt-1", typography.caption())}>
-          Choose a theme that suits your style and mood
+          {t('themeSelector.description')}
         </p>
       </div>
 
@@ -163,7 +166,7 @@ export const ThemeSelector = React.memo(() => {
             "bg-muted/50 border-muted focus:bg-background",
             typography.body()
           )}
-          placeholder="Search themes..."
+          placeholder={t('themeSelector.searchPlaceholder')}
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -205,7 +208,7 @@ export const ThemeSelector = React.memo(() => {
                               {theme.name}
                             </h5>
                             <p className={cn("mt-0.5 line-clamp-2", typography.caption())}>
-                              {theme.description || `Dark theme with ${theme.name.toLowerCase()} accents`}
+                              {theme.description || t('themeSelector.defaultDescription', { name: theme.name.toLowerCase() })}
                             </p>
                           </div>
                           {currentTheme === theme.id && (
@@ -213,7 +216,7 @@ export const ThemeSelector = React.memo(() => {
                               className="border-primary/50 text-primary"
                               variant="outline"
                             >
-                              Active
+                              {t('themeSelector.active')}
                             </Badge>
                           )}
                         </div>
@@ -256,7 +259,7 @@ export const ThemeSelector = React.memo(() => {
             transition={springPresets.smooth}
           >
             <p className={typography.body('text-muted-foreground')}>
-              No themes found matching your criteria
+              {t('themeSelector.noResults')}
             </p>
             <button
               className={cn("mt-2 text-primary hover:underline", typography.small())}
@@ -264,7 +267,7 @@ export const ThemeSelector = React.memo(() => {
                 setSearchQuery("");
               }}
             >
-              Clear search
+              {t('themeSelector.clearSearch')}
             </button>
           </motion.div>
         )}

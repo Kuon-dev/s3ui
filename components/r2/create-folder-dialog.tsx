@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,6 +30,7 @@ export function CreateFolderDialog({
   const [folderName, setFolderName] = useState('');
   const [creating, setCreating] = useState(false);
   const { createFolder } = useFileBrowserStore();
+  const t = useTranslations();
 
   const handleCreate = async () => {
     const validation = validateFolderName(folderName);
@@ -77,36 +79,36 @@ export function CreateFolderDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Create New Folder</DialogTitle>
+          <DialogTitle>{t('createFolderDialog.title')}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
           <div>
             <label htmlFor="folderName" className="text-sm font-medium">
-              Folder Name
+              {t('createFolderDialog.folderNameLabel')}
             </label>
             <Input
               id="folderName"
               value={folderName}
               onChange={(e) => setFolderName(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Enter folder name"
+              placeholder={t('createFolderDialog.placeholder')}
               disabled={creating}
               className="mt-1"
             />
           </div>
 
           <div className="text-sm text-gray-400">
-            Create in: /{currentPath}
+            {t('createFolderDialog.createIn', { path: currentPath })}
           </div>
         </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button variant="outline" onClick={handleClose} disabled={creating}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleCreate} disabled={creating || !folderName.trim()}>
-            {creating ? 'Creating...' : 'Create Folder'}
+            {creating ? t('createFolderDialog.creating') : t('createFolderDialog.createButton')}
           </Button>
         </div>
       </DialogContent>

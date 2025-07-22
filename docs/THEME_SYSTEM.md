@@ -290,6 +290,13 @@ const themes: Theme[] = [
 
 ## Theme Switching
 
+### Settings Dialog Integration
+
+The theme switcher is integrated into the Settings dialog, accessible through the settings button in the application header. The Settings dialog also includes:
+- Language selection (i18n support for 6 languages)
+- UI density controls
+- Other appearance preferences
+
 ### Component Implementation
 
 ```typescript

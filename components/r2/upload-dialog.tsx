@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { 
   Upload, 
   X, 
@@ -48,6 +49,7 @@ export function UploadDialog({
   currentPath,
   onUploadComplete,
 }: UploadDialogProps) {
+  const t = useTranslations();
   const [selectedFiles, setSelectedFiles] = useState<FileWithProgress[]>([]);
   const [uploading, setUploading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -70,7 +72,7 @@ export function UploadDialog({
         .filter(file => {
           if (!file || !file.name || file.name === '') {
             console.error('File missing name:', file ? { name: file.name, size: file.size, type: file.type } : 'null file');
-            toast.error('One or more files are invalid or missing names');
+            toast.error(t('errors.invalidFiles'));
             return false;
           }
           return true;
@@ -190,17 +192,17 @@ export function UploadDialog({
                 ? { 
                     ...f, 
                     status: 'failed' as const, 
-                    error: error instanceof Error ? error.message : 'Upload failed' 
+                    error: error instanceof Error ? error.message : t('errors.uploadFailed') 
                   }
                 : f
             )
           );
-          toast.error(`Failed to upload ${fileItem.file.name}`);
+          toast.error(t('errors.failedToUpload', { name: fileItem.file.name }));
         }
       }
       
       if (uploadedCount.current > 0) {
-        toast.success(`Successfully uploaded ${uploadedCount.current} file${uploadedCount.current > 1 ? 's' : ''}`);
+        toast.success(t('success.filesUploaded', { count: uploadedCount.current }));
         onUploadComplete();
       }
     } finally {
@@ -251,10 +253,10 @@ export function UploadDialog({
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold flex items-center gap-2">
               <Cloud className="h-5 w-5 text-primary" />
-              Upload Files
+              {t('uploadDialog.title')}
             </DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              {currentPath ? `Uploading to: /${currentPath}` : 'Uploading to: Home'}
+              {currentPath ? t('uploadDialog.uploadingTo', { path: currentPath }) : t('uploadDialog.uploadingToHome')}
             </p>
           </DialogHeader>
         </motion.div>
@@ -296,20 +298,17 @@ export function UploadDialog({
               
               <div className="space-y-grid-2">
                 <h3 className="font-medium text-lg">
-                  {isDragging ? 'Drop files here' : 'Drag & drop files here'}
+                  {isDragging ? t('uploadDialog.dropFiles') : t('uploadDialog.dragDropFiles')}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  or{' '}
-                  <label htmlFor="file-upload" className="text-primary hover:underline cursor-pointer">
-                    browse from your computer
-                  </label>
+                  {t('uploadDialog.browseComputer')}
                 </p>
               </div>
               
               <div className="flex items-center gap-grid-4 text-xs text-muted-foreground">
-                <span>Max {MAX_FILES_PER_UPLOAD} files</span>
+                <span>{t('uploadDialog.maxFiles', { count: MAX_FILES_PER_UPLOAD })}</span>
                 <span>•</span>
-                <span>{formatFileSize(MAX_FILE_SIZE)} per file</span>
+                <span>{t('uploadDialog.maxSize', { size: formatFileSize(MAX_FILE_SIZE) })}</span>
               </div>
             </motion.div>
           </motion.div>
@@ -346,7 +345,7 @@ export function UploadDialog({
               >
                 <div className="flex items-center justify-between mt-2 pb-2">
                   <h4 className="font-medium text-sm">
-                    Selected Files ({selectedFiles.length})
+                    {t('uploadDialog.selectedFiles', { count: selectedFiles.length })}
                   </h4>
                   {!uploading && (
                     <Button
@@ -355,7 +354,7 @@ export function UploadDialog({
                       onClick={clearFiles}
                       className="text-muted-foreground hover:text-foreground"
                     >
-                      Clear all
+                      {t('uploadDialog.clearAll')}
                     </Button>
                   )}
                 </div>
@@ -368,8 +367,8 @@ export function UploadDialog({
                     className="p-grid-3 bg-primary/5 rounded-lg border border-primary/20"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Total Progress</span>
-                      <span className="text-sm text-muted-foreground">{totalProgress}%</span>
+                      <span className="text-sm font-medium">{t('uploadDialog.totalProgress')}</span>
+                      <span className="text-sm text-muted-foreground">{t('uploadDialog.percentComplete', { percent: totalProgress })}</span>
                     </div>
                     <Progress value={totalProgress} className="h-2" />
                   </motion.div>
@@ -455,7 +454,7 @@ export function UploadDialog({
               onClick={onClose}
               disabled={uploading}
             >
-              {allCompleted ? 'Done' : 'Cancel'}
+              {allCompleted ? t('common.done') : t('common.cancel')}
             </Button>
             {!allCompleted && (
               <Button
@@ -466,12 +465,12 @@ export function UploadDialog({
                 {uploading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
+                    {t('uploadDialog.uploading')}
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Upload
+                    {t('common.upload')}
                   </>
                 )}
               </Button>

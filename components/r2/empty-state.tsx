@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { springPresets } from '@/lib/animations';
 import { useTypography } from '@/lib/hooks/use-typography';
 import { cn } from '@/lib/utils';
+import { useTranslations } from '@/hooks/use-translations';
 
 interface EmptyStateProps {
   type: 'empty-folder' | 'no-search-results' | 'error';
@@ -16,30 +17,32 @@ interface EmptyStateProps {
 
 export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
   const typography = useTypography();
+  const t = useTranslations('emptyState');
+  
   const configs = {
     'empty-folder': {
       icon: FolderOpen,
-      title: 'This folder is empty',
-      description: 'Drag and drop files here or click the upload button to get started.',
-      actionLabel: 'Upload Files',
+      title: t('folderEmpty'),
+      description: t('dragDropHint'),
+      actionLabel: t('uploadFiles'),
       actionIcon: Upload,
       showAction: true,
     },
     'no-search-results': {
       icon: Search,
-      title: 'No results found',
+      title: t('noResults'),
       description: searchQuery 
-        ? `We couldn't find any files matching "${searchQuery}"`
-        : 'Try adjusting your search or browse a different folder.',
-      actionLabel: 'Clear Search',
+        ? t('noResultsMessage', { query: searchQuery })
+        : t('noResultsHint'),
+      actionLabel: t('clearSearch'),
       actionIcon: undefined,
       showAction: false,
     },
     'error': {
       icon: FolderOpen,
-      title: 'Something went wrong',
-      description: 'We encountered an error loading this folder. Please try again.',
-      actionLabel: 'Retry',
+      title: t('errorTitle'),
+      description: t('errorMessage'),
+      actionLabel: t('retry'),
       actionIcon: undefined,
       showAction: true,
     },

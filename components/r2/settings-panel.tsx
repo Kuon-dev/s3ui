@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Palette, Eye, MousePointer, Cog, RotateCcw, Check } from 'lucide-react';
+import { Palette, Eye, MousePointer, Cog, RotateCcw, Check } from 'lucide-react';
 import { 
   useUIStateStore,
   type AccentColor,
@@ -28,8 +28,6 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-type SettingsSection = 'appearance' | 'file-display' | 'behavior' | 'advanced';
 
 const accentColors: { value: AccentColor; label: string; color: string }[] = [
   { value: 'blue', label: 'Blue', color: 'oklch(0.75 0.15 240)' },

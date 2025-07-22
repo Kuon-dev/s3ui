@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Search, Folder, Clock, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   CommandDialog,
@@ -31,6 +32,7 @@ interface SearchResult {
 }
 
 export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps) {
+  const t = useTranslations();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -126,19 +128,19 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
           });
         }
       } else {
-        toast.error('Failed to search files');
+        toast.error(t('errors.searchFailed'));
         setApiResults([]);
       }
     } catch (error) {
       // Only show error if it's not an abort error
       if (error instanceof Error && error.name !== 'AbortError') {
-        toast.error('Error searching files');
+        toast.error(t('errors.searchError'));
       }
       setApiResults([]);
     } finally {
       setLoading(false);
     }
-  }, []); // No dependencies needed now
+  }, [t]); // Translation dependency
 
   // Debounced search effect with request cancellation
   useEffect(() => {
@@ -254,7 +256,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
   return (
     <CommandDialog open={isOpen} onOpenChange={onClose}>
       <CommandInput
-        placeholder="Search files and folders..."
+        placeholder={t('globalSearch.placeholder')}
         value={searchQuery}
         onValueChange={setSearchQuery}
         onKeyDown={handleKeyDown}
@@ -265,14 +267,14 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
           {loading ? (
             <div className="flex items-center justify-center py-6">
               <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Searching...</span>
+              <span className="ml-2 text-sm text-muted-foreground">{t('globalSearch.searching')}</span>
             </div>
           ) : searchQuery && searchResults.length === 0 ? (
             <CommandEmpty>
               <div className="flex flex-col items-center gap-2 py-6">
                 <Search className="h-8 w-8 text-muted-foreground/50" />
                 <p className="text-sm text-muted-foreground">
-                  No results found for &ldquo;{searchQuery}&rdquo;
+                  {t('globalSearch.noResultsFor', { query: searchQuery })}
                 </p>
               </div>
             </CommandEmpty>
@@ -280,9 +282,9 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
             <div>
               {/* Folders */}
               {groupedResults.folders.length > 0 && (
-                <CommandGroup heading={`Folders (${groupedResults.folders.length})`}>
+                <CommandGroup heading={t('globalSearch.foldersCount', { count: groupedResults.folders.length })}>
                   {groupedResults.folders.map((result) => {
-                    const name = result.key.replace(/\/$/, '').split('/').pop() || 'Home';
+                    const name = result.key.replace(/\/$/, '').split('/').pop() || t('common.home');
                     const isSelected = searchResults.indexOf(result) === selectedIndex;
                     
                     return (
@@ -298,7 +300,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
                             {highlightMatch(name, searchQuery)}
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
-                            {result.path || 'Home'}
+                            {result.path || t('common.home')}
                           </div>
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -310,10 +312,10 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
               
               {/* Files by type */}
               {Object.entries(groupedResults.filesByType).map(([type, files]) => {
-                const typeLabel = type.charAt(0).toUpperCase() + type.slice(1) + 's';
+                const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
                 
                 return (
-                  <CommandGroup key={type} heading={`${typeLabel} (${files.length})`}>
+                  <CommandGroup key={type} heading={t('globalSearch.typeCount', { type: typeLabel, count: files.length })}>
                     {files.map((result) => {
                       const name = result.key.split('/').pop() || result.key;
                       const Icon = getFileIcon(name, false);
@@ -332,7 +334,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
                               {highlightMatch(name, searchQuery)}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {result.path || 'Home'}
+                              {result.path || t('common.home')}
                             </div>
                           </div>
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -344,7 +346,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
               })}
             </div>
           ) : !searchQuery && recentSearches.length > 0 ? (
-            <CommandGroup heading="Recent searches">
+            <CommandGroup heading={t('globalSearch.recentSearches')}>
               {recentSearches.map((search) => (
                 <CommandItem
                   key={search}
@@ -363,19 +365,19 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">↑↓</kbd>
-            Navigate
+            {t('common.navigate')}
           </span>
           <span className="flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">↵</kbd>
-            Open
+            {t('common.open')}
           </span>
           <span className="flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">Esc</kbd>
-            Close
+            {t('common.close')}
           </span>
         </div>
         {searchResults.length > 0 && (
-          <span>{searchResults.length} results</span>
+          <span>{t('globalSearch.resultsCount', { count: searchResults.length })}</span>
         )}
       </div>
     </CommandDialog>

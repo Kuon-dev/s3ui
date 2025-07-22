@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { format } from 'date-fns';
 import {
   Upload,
@@ -91,6 +92,7 @@ interface FileBrowserProps {
 
 export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   const typography = useTypography();
+  const t = useTranslations();
   const {
     currentPath,
     searchQuery,
@@ -362,9 +364,9 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       setPasteConflicts([]);
     } catch (error) {
       console.error('Paste failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to paste');
+      toast.error(error instanceof Error ? error.message : t('errors.failedToPaste'));
     }
-  }, [hasClipboardItems, paste, refreshCurrentFolder, checkForConflicts, currentPath]);
+  }, [hasClipboardItems, paste, refreshCurrentFolder, checkForConflicts, currentPath, t]);
 
 
   // Sort objects based on current sort settings
@@ -427,8 +429,8 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
       }));
     
     copyToClipboard(itemsToCopy, currentPath);
-    toast.success(`Copied ${itemsToCopy.length} item${itemsToCopy.length > 1 ? 's' : ''} to clipboard`);
-  }, [selectedItems, sortedObjects, copyToClipboard, currentPath]);
+    toast.success(t('success.copiedToClipboard', { count: itemsToCopy.length }));
+  }, [selectedItems, sortedObjects, copyToClipboard, currentPath, t]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -571,32 +573,32 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     // Check if destination already exists
     const destinationExists = filteredObjects.some(obj => obj.key === destinationPath || obj.key === `${destinationPath}/`);
     if (destinationExists) {
-      toast.error(`A file or folder named "${draggedItem.name}" already exists in this location`);
+      toast.error(t('errors.itemAlreadyExists', { name: draggedItem.name }));
       return;
     }
     
     // Perform move operation
-    const loadingToast = toast.loading(`Moving "${draggedItem.name}"...`);
+    const loadingToast = toast.loading(t('info.movingItem', { name: draggedItem.name }));
     
     try {
       await renameObject(draggedItem.key, destinationPath);
       toast.dismiss(loadingToast);
-      toast.success(`Successfully moved "${draggedItem.name}"`);
+      toast.success(t('success.movedItem', { name: draggedItem.name }));
     } catch (error) {
       toast.dismiss(loadingToast);
-      toast.error(error instanceof Error ? error.message : 'Failed to move file');
+      toast.error(error instanceof Error ? error.message : t('errors.failedToMove'));
     }
-  }, [currentPath, filteredObjects, renameObject]);
+  }, [currentPath, filteredObjects, renameObject, t]);
 
   const handleFileUpload = async (files: FileList) => {
     for (const file of Array.from(files)) {
       try {
         await uploadManager.uploadFile(file, currentPath, (progress) => {
-          toast.info(`Uploading ${file.name}: ${progress.progress}%`);
+          toast.info(t('info.uploadingFile', { name: file.name, progress: progress.progress }));
         });
-        toast.success(`${file.name} uploaded successfully`);
+        toast.success(t('success.fileUploaded', { name: file.name }));
       } catch {
-        toast.error(`Failed to upload ${file.name}`);
+        toast.error(t('errors.failedToUpload', { name: file.name }));
       }
     }
     refreshCurrentFolder();
@@ -686,7 +688,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       {filename}
                     </button>
                     <p className="text-[10px] text-muted-foreground">
-                      {object.isFolder ? 'Folder' : formatFileSize(object.size)}
+                      {object.isFolder ? t('common.folder') : formatFileSize(object.size)}
                     </p>
                   </div>
                   
@@ -788,7 +790,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               <div className={cn('flex items-center gap-2', typography.small())}>
                 {/* Type column - w-24 */}
                 <span className="w-20 text-muted-foreground truncate">
-                  {object.isFolder ? 'Folder' : fileType.description}
+                  {object.isFolder ? t('common.folder') : fileType.description}
                 </span>
                 
                 {/* Size column - w-20 */}
@@ -806,7 +808,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
               <div className="flex items-center gap-1 w-20 justify-end">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                   {!object.isFolder && (
-                    <Tooltip content="Download">
+                    <Tooltip content={t('common.download')}>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -823,12 +825,12 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Tooltip content="More actions">
+                      <Tooltip content={t('fileBrowser.moreActionsTooltip')}>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={(e) => e.stopPropagation()}
-                          aria-label="More actions"
+                          aria-label={t('fileBrowser.moreActions')}
                           className="h-6 w-6 p-0"
                         >
                           <MoreHorizontal className="h-3.5 w-3.5" />
@@ -887,28 +889,28 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         <>
           <DropdownMenuItem onClick={() => handlePreview(object)}>
             <Eye className="h-3 w-3 mr-1" />
-            Preview
+            {t('common.preview')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleDownload(object)}>
             <Download className="h-3 w-3 mr-1" />
-            Download
+            {t('common.download')}
           </DropdownMenuItem>
         </>
       )}
       <DropdownMenuItem onClick={() => handleCopy(object)}>
         <Clipboard className="h-3 w-3 mr-1" />
-        Copy
+        {t('common.copy')}
         <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
       </DropdownMenuItem>
       <DropdownMenuItem onClick={() => handleCut(object)}>
         <Scissors className="h-3 w-3 mr-1" />
-        Cut
+        {t('common.cut')}
         <DropdownMenuShortcut>⌘X</DropdownMenuShortcut>
       </DropdownMenuItem>
       {hasClipboardItems() && canPaste(currentPath) && (
         <DropdownMenuItem onClick={() => handlePaste()}>
           <ClipboardPaste className="h-3 w-3 mr-1" />
-          Paste ({clipboardItems.length})
+          {t('contextMenu.pasteItems', { count: clipboardItems.length, operation: 'paste' })}
           <DropdownMenuShortcut>⌘V</DropdownMenuShortcut>
         </DropdownMenuItem>
       )}
@@ -918,7 +920,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         setShowRenameDialog(true);
       }}>
         <Edit className="h-3 w-3 mr-1" />
-        Rename
+        {t('common.rename')}
         <DropdownMenuShortcut>F2</DropdownMenuShortcut>
       </DropdownMenuItem>
       <DropdownMenuItem
@@ -929,7 +931,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         className="text-destructive focus:text-destructive"
       >
         <Trash2 className="h-3 w-3 mr-1" />
-        Delete
+        {t('common.delete')}
         <DropdownMenuShortcut>⌦</DropdownMenuShortcut>
       </DropdownMenuItem>
     </>
@@ -966,13 +968,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
             <div className="glass-subtle border-b px-3 py-2">
               {/* Breadcrumb Navigation */}
               <div className={cn('flex items-center gap-1 mb-2', typography.small('text-muted-foreground'))}>
-                <Tooltip content="Go to home" delayDuration={800}>
+                <Tooltip content={t('fileBrowser.goToHome')} delayDuration={800}>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={async () => await navigateToFolder('')}
                     className="p-1 hover:bg-accent h-6 w-6"
-                    aria-label="Navigate to home"
+                    aria-label={t('fileBrowser.goToHome')}
                   >
                     <Home className="h-3 w-3" />
                   </Button>
@@ -1002,23 +1004,23 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   <div className="relative flex-1">
                     <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <Input
-                      placeholder="Search in current folder..."
+                      placeholder={t('fileBrowser.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className={cn('h-7 bg-background/50 border-muted focus:bg-background transition-colors', typography.body())}
                       style={{ paddingLeft: '28px' }}
                     />
                   </div>
-                  <Tooltip content="Search all folders" shortcut="⌘K">
+                  <Tooltip content={t('fileBrowser.searchAllFolders')} shortcut="⌘K">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowGlobalSearch(true)}
                       className={cn('px-2 h-7 border-muted hover:bg-accent', typography.button())}
-                      aria-label="Global search"
+                      aria-label={t('fileBrowser.searchAllFolders')}
                     >
                       <Search className="h-3 w-3 mr-1" />
-                      Global
+                      {t('fileBrowser.global')}
                       <kbd className="ml-1 pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded border bg-muted px-1 font-mono text-[9px] font-medium text-muted-foreground opacity-100">
                         ⌘K
                       </kbd>
@@ -1028,13 +1030,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                 
                 <div className="flex items-center gap-2">
                   {/* Refresh Button */}
-                  <Tooltip content="Refresh current folder" shortcut="F5">
+                  <Tooltip content={t('fileBrowser.refreshCurrentFolder')} shortcut="F5">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => refreshCurrentFolder()}
                       className="h-7 px-2 border-muted hover:bg-accent"
-                      aria-label="Refresh folder"
+                      aria-label={t('fileBrowser.refreshCurrentFolder')}
                     >
                       <RefreshCw className="h-3 w-3" />
                     </Button>
@@ -1043,7 +1045,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   {/* Sort Controls */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Tooltip content={`Sort by ${sortBy} (${sortOrder === 'asc' ? 'ascending' : 'descending'}) - Click to change`} delayDuration={800}>
+                      <Tooltip content={t('fileBrowser.sortTooltip', { by: sortBy, order: sortOrder })} delayDuration={800}>
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -1052,10 +1054,10 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         >
                           <ArrowUpDown className="h-3 w-3" />
                           <span className={cn('font-medium', typography.button())}>
-                            {sortBy === 'name' && 'Name'}
-                            {sortBy === 'size' && 'Size'}
-                            {sortBy === 'date' && 'Date'}
-                            {sortBy === 'type' && 'Type'}
+                            {sortBy === 'name' && t('fileBrowser.name')}
+                            {sortBy === 'size' && t('fileBrowser.size')}
+                            {sortBy === 'date' && t('fileBrowser.date')}
+                            {sortBy === 'type' && t('fileBrowser.type')}
                           </span>
                           <motion.div
                             key={sortOrder}
@@ -1074,7 +1076,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         className={sortBy === 'name' ? 'bg-accent' : ''}
                       >
                         <Type className="h-3 w-3 mr-1" />
-                        Sort by Name
+                        {t('fileBrowser.sortByName')}
                         {sortBy === 'name' && (
                           <motion.div
                             initial={{ scale: 0 }}
@@ -1090,7 +1092,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         className={sortBy === 'size' ? 'bg-accent' : ''}
                       >
                         <HardDrive className="h-3 w-3 mr-1" />
-                        Sort by Size
+                        {t('fileBrowser.sortBySize')}
                         {sortBy === 'size' && (
                           <motion.div
                             initial={{ scale: 0 }}
@@ -1106,7 +1108,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         className={sortBy === 'date' ? 'bg-accent' : ''}
                       >
                         <Calendar className="h-3 w-3 mr-1" />
-                        Sort by Date
+                        {t('fileBrowser.sortByDate')}
                         {sortBy === 'date' && (
                           <motion.div
                             initial={{ scale: 0 }}
@@ -1122,7 +1124,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         className={sortBy === 'type' ? 'bg-accent' : ''}
                       >
                         <FileType className="h-3 w-3 mr-1" />
-                        Sort by Type
+                        {t('fileBrowser.sortByType')}
                         {sortBy === 'type' && (
                           <motion.div
                             initial={{ scale: 0 }}
@@ -1140,12 +1142,12 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         {sortOrder === 'asc' ? (
                           <>
                             <SortDesc className="h-3 w-3 mr-1" />
-                            Sort Descending
+                            {t('fileBrowser.sortDescending')}
                           </>
                         ) : (
                           <>
                             <SortAsc className="h-3 w-3 mr-1" />
-                            Sort Ascending
+                            {t('fileBrowser.sortAscending')}
                           </>
                         )}
                       </DropdownMenuItem>
@@ -1170,16 +1172,16 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                           onClick={() => setSelectedItems(new Set())}
                           className={cn('h-5 px-1.5', typography.button())}
                         >
-                          Clear
+                          {t('common.clear')}
                         </Button>
                       </motion.div>
-                      <Tooltip content="Delete selected items">
+                      <Tooltip content={t('fileBrowser.deleteItemsTooltip')}>
                         <Button
                           variant="destructive"
                           size="sm"
                           onClick={handleBulkDelete}
                           className="active-scale"
-                          aria-label="Delete selected"
+                          aria-label={t('fileBrowser.deleteItemsTooltip')}
                         >
                           <Trash2 className="h-3 w-3 mr-1" />
                           Delete ({selectedItems.size})
@@ -1188,22 +1190,22 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                     </>
                   ) : (
                     <>
-                      <Tooltip content="Upload files to current folder">
+                      <Tooltip content={t('fileBrowser.uploadFilesTooltip')}>
                         <Button
                           onClick={() => setShowUploadDialog(true)}
                           className={cn('h-7 px-2 active-scale shadow-soft hover:shadow-hover hover:bg-accent', typography.button())}
-                          aria-label="Upload files"
+                          aria-label={t('fileBrowser.uploadFilesTooltip')}
                         >
                           <Upload className="h-3 w-3 mr-1" />
                           Upload
                         </Button>
                       </Tooltip>
-                      <Tooltip content="Create a new folder">
+                      <Tooltip content={t('fileBrowser.createFolderTooltip')}>
                         <Button
                           variant="outline"
                           onClick={() => setShowCreateFolderDialog(true)}
                           className={cn('h-7 px-2 active-scale border-muted hover:bg-accent', typography.button())}
-                          aria-label="Create new folder"
+                          aria-label={t('fileBrowser.createFolderTooltip')}
                         >
                           <FolderPlus className="h-3 w-3 mr-1" />
                           New Folder
@@ -1220,15 +1222,15 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={springPresets.snappy}
                       >
-                        <Tooltip content={`${clipboardOperation === 'cut' ? 'Move' : 'Copy'} ${clipboardItems.length} item(s)`} shortcut="⌘V">
+                        <Tooltip content={t('fileBrowser.pasteTooltip', { operation: clipboardOperation || 'paste', count: clipboardItems.length })} shortcut="⌘V">
                           <Button 
                             variant="outline" 
                             onClick={() => handlePaste()}
                             className="active-scale"
-                            aria-label={`Paste ${clipboardItems.length} item(s)`}
+                            aria-label={t('fileBrowser.pasteItems', { count: clipboardItems.length })}
                           >
                             <ClipboardPaste className="h-3 w-3 mr-1" />
-                            Paste
+                            {t('fileBrowser.paste')}
                           </Button>
                         </Tooltip>
                       </motion.div>
@@ -1236,13 +1238,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   </AnimatePresence>
                   
                   {/* Settings Button */}
-                  <Tooltip content="Open settings" shortcut="⌘,">
+                  <Tooltip content={t('fileBrowser.openSettingsTooltip')} shortcut="⌘,">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowSettings(true)}
                       className="h-7 px-2 border-muted hover:bg-accent"
-                      aria-label="Settings"
+                      aria-label={t('fileBrowser.openSettingsTooltip')}
                     >
                       <Settings className="h-3 w-3" />
                     </Button>
@@ -1299,7 +1301,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                               }
                             }}
                             className="mr-1"
-                            aria-label="Select all"
+                            aria-label={t('fileBrowser.selectAll')}
                           />
                           <div className="w-4" /> {/* Space for icon */}
                           <button
@@ -1313,7 +1315,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                               }
                             }}
                           >
-                            Name
+                            {t('fileBrowser.name')}
                             {sortBy === 'name' && (
                               <motion.div
                                 key={sortOrder}
@@ -1338,7 +1340,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                               }
                             }}
                           >
-                            Type
+                            {t('fileBrowser.type')}
                             {sortBy === 'type' && (
                               <motion.div
                                 key={sortOrder}
@@ -1361,7 +1363,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                               }
                             }}
                           >
-                            Size
+                            {t('fileBrowser.size')}
                             {sortBy === 'size' && (
                               <motion.div
                                 key={sortOrder}
@@ -1384,7 +1386,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                               }
                             }}
                           >
-                            Modified
+                            {t('fileBrowser.modified')}
                             {sortBy === 'date' && (
                               <motion.div
                                 key={sortOrder}
@@ -1429,7 +1431,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                               >
                                 <FolderIcon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                 <span className={cn('group-hover:text-foreground transition-colors', typography.body('text-muted-foreground'))}>
-                                  .. (Parent Folder)
+                                  .. ({t('fileBrowser.parentFolder')})
                                 </span>
                                 <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
                               </div>
@@ -1450,23 +1452,23 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       <div>
                         {selectedItems.size > 0 ? (
                           <span className="font-medium text-foreground">
-                            {selectedItems.size} {selectedItems.size === 1 ? 'item' : 'items'} selected
+                            {t('fileBrowser.itemsSelected', { count: selectedItems.size })}
                           </span>
                         ) : (
                           <>
-                            {sortedObjects.length} {sortedObjects.length === 1 ? 'item' : 'items'}
+                            {t('fileBrowser.itemsCount', { count: sortedObjects.length })}
                             {sortedObjects.filter(o => o.isFolder).length > 0 && (
-                              <span> • {sortedObjects.filter(o => o.isFolder).length} {sortedObjects.filter(o => o.isFolder).length === 1 ? 'folder' : 'folders'}</span>
+                              <span> • {t('fileBrowser.folderCount', { count: sortedObjects.filter(o => o.isFolder).length })}</span>
                             )}
                             {sortedObjects.filter(o => !o.isFolder).length > 0 && (
-                              <span> • {sortedObjects.filter(o => !o.isFolder).length} {sortedObjects.filter(o => !o.isFolder).length === 1 ? 'file' : 'files'}</span>
+                              <span> • {t('fileBrowser.fileCount', { count: sortedObjects.filter(o => !o.isFolder).length })}</span>
                             )}
                           </>
                         )}
                       </div>
                       <div>
                         {sortedObjects.filter(o => !o.isFolder).length > 0 && (
-                          <span>Total size: {formatFileSize(sortedObjects.filter(o => !o.isFolder).reduce((acc, obj) => acc + obj.size, 0))}</span>
+                          <span>{t('fileBrowser.totalSize', { size: formatFileSize(sortedObjects.filter(o => !o.isFolder).reduce((acc, obj) => acc + obj.size, 0)) })}</span>
                         )}
                       </div>
                     </motion.div>
@@ -1541,11 +1543,11 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
         <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>File Conflicts Detected</DialogTitle>
+              <DialogTitle>{t('fileBrowser.fileConflictsDetected')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p className={typography.body()}>
-                The following {pasteConflicts.length} item(s) already exist in the destination:
+                {t('fileBrowser.conflictMessage', { count: pasteConflicts.length })}:
               </p>
               <ScrollArea className="max-h-48">
                 <ul className={cn('space-y-1', typography.body())}>
@@ -1557,7 +1559,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                 </ul>
               </ScrollArea>
               <p className={typography.body()}>
-                What would you like to do?
+                {t('fileBrowser.conflictQuestion')}
               </p>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -1568,7 +1570,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   setPasteConflicts([]);
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="outline"
@@ -1577,7 +1579,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                   handlePaste(true); // Skip conflicts
                 }}
               >
-                Skip Conflicts
+                {t('fileBrowser.skipConflicts')}
               </Button>
               <Button
                 variant="default"
@@ -1594,7 +1596,7 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                 }}
                 className="bg-destructive hover:bg-destructive/90"
               >
-                Replace All
+                {t('fileBrowser.replaceAll')}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -23,6 +23,17 @@ const CardEnhanced = React.forwardRef<HTMLDivElement, CardEnhancedProps>(
     };
     
     const MotionDiv = interactive ? motion.div : 'div';
+    
+    // Separate motion props from regular props
+    const motionSpecificProps = ['onDrag', 'onDragStart', 'onDragEnd', 'onAnimationStart', 'whileHover', 'whileTap', 'transition', 'animate', 'initial', 'exit'];
+    const restProps: Record<string, unknown> = {};
+    
+    Object.entries(props).forEach(([key, value]) => {
+      if (!motionSpecificProps.includes(key)) {
+        restProps[key] = value;
+      }
+    });
+    
     const interactiveProps = interactive ? {
       whileHover: { scale: 1.02, y: -4 },
       whileTap: { scale: 0.98 },
@@ -42,7 +53,7 @@ const CardEnhanced = React.forwardRef<HTMLDivElement, CardEnhancedProps>(
           className
         )}
         {...interactiveProps}
-        {...props}
+        {...restProps}
       >
         {/* Subtle gradient overlay for depth */}
         {variant === 'elevated' && (

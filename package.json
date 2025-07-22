@@ -11,7 +11,10 @@
     "docker:build": "docker build -t s3ui .",
     "docker:run": "docker run -p 4713:3000 --env-file .env.local s3ui",
     "docker:up": "docker-compose up --build",
-    "docker:dev": "docker-compose --profile dev up --build"
+    "docker:dev": "docker-compose --profile dev up --build",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.832.0",
@@ -55,6 +58,7 @@
     "lucide-react": "^0.519.0",
     "motion": "^12.23.1",
     "next": "15.3.4",
+    "next-intl": "^4.3.4",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-day-picker": "^9.8.0",
@@ -73,12 +77,19 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query-devtools": "^5.81.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.3.4",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.0",
     "tw-animate-css": "^1.3.4",
     "typescript": "^5"
   }

@@ -3,8 +3,8 @@
 import React, { useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Toggle } from "@/components/ui/toggle"
-import { RadioGroup, RadioGroupItem, RadioGroupItemWithLabel, RadioGroupCard } from "@/components/ui/radio-group"
-import { Heart, Star, Bell, Bookmark, Settings, Moon, Sun, Volume2, VolumeX, Palette, Layout, Type } from "lucide-react"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Heart, Star, Bell, Bookmark, Settings, Moon, Sun, Volume2, VolumeX, Layout, Type } from "lucide-react"
 import { motion } from "motion/react"
 
 export default function UIDemo() {

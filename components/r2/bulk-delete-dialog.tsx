@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,6 +26,7 @@ export function BulkDeleteDialog({
   selectedKeys,
   onDeleted,
 }: BulkDeleteDialogProps) {
+  const t = useTranslations();
   const [deleting, setDeleting] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const { deleteObject, refreshCurrentFolder } = useFileBrowserStore();
@@ -46,7 +48,7 @@ export function BulkDeleteDialog({
         toast.success(
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
-            <span>Successfully deleted {count} {count === 1 ? 'item' : 'items'}</span>
+            <span>{t('success.bulkDeleted', { count })}</span>
           </div>
         );
         onClose();
@@ -61,13 +63,13 @@ export function BulkDeleteDialog({
           toast.warning(
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              <span>Deleted {successCount} items, but {failCount} failed</span>
+              <span>{t('errors.partialBulkDelete', { successCount, failCount })}</span>
             </div>
           );
           // Refresh to ensure UI is in sync
           await refreshCurrentFolder();
         } else {
-          toast.error('Failed to delete items');
+          toast.error(t('errors.bulkDeleteFailed'));
         }
         
         if (onDeleted) {
@@ -75,7 +77,7 @@ export function BulkDeleteDialog({
         }
       }
     } catch (error) {
-      toast.error('Error during bulk delete operation');
+      toast.error(t('errors.bulkDeleteError'));
       console.error('Bulk delete error:', error);
     } finally {
       setDeleting(false);
@@ -103,10 +105,10 @@ export function BulkDeleteDialog({
             </div>
             <div className="flex-1 pt-1">
               <h2 className="text-lg font-semibold text-foreground">
-                Delete {count} {count === 1 ? 'item' : 'items'}?
+                {t('bulkDeleteDialog.title', { count })}
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                This action cannot be undone
+                {t('deleteDialog.cannotUndo')}
               </p>
             </div>
           </div>
@@ -119,7 +121,7 @@ export function BulkDeleteDialog({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Files className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium">{count} selected {count === 1 ? 'item' : 'items'}</span>
+                <span className="text-sm font-medium">{t('bulkDeleteDialog.selectedItems', { count })}</span>
               </div>
               {deleting && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -147,17 +149,16 @@ export function BulkDeleteDialog({
             <p className="text-sm text-destructive flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
               <span>
-                All selected files and folders will be <strong className="font-semibold">permanently deleted</strong>, 
-                including any contents inside folders.
+                {t.rich('bulkDeleteDialog.warning', { 
+                  strong: (chunks) => <strong className="font-semibold">{chunks}</strong> 
+                })}
               </span>
             </p>
           </div>
 
           {/* Additional info */}
           <p className="text-xs text-muted-foreground leading-relaxed">
-            {count === 1 
-              ? 'This item will be permanently removed from your storage.'
-              : `These ${count} items will be permanently removed from your storage.`}
+            {t('bulkDeleteDialog.description', { count })}
           </p>
         </div>
 
@@ -170,7 +171,7 @@ export function BulkDeleteDialog({
               disabled={deleting}
               className="min-w-[80px]"
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button 
               variant="destructive"
@@ -184,10 +185,10 @@ export function BulkDeleteDialog({
               {deleting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Deleting</span>
+                  <span>{t('bulkDeleteDialog.deleting')}</span>
                 </>
               ) : (
-                `Delete ${count} ${count === 1 ? 'item' : 'items'}`
+                t('bulkDeleteDialog.deleteButton', { count })
               )}
             </Button>
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,6 +31,7 @@ export function RenameDialog({
   const [newName, setNewName] = useState('');
   const [renaming, setRenaming] = useState(false);
   const { renameObject } = useFileBrowserStore();
+  const t = useTranslations();
 
   useEffect(() => {
     if (isOpen && object) {
@@ -43,7 +45,7 @@ export function RenameDialog({
 
   const handleRename = async () => {
     if (!newName.trim()) {
-      toast.error('Please enter a name');
+      toast.error(t('renameDialog.emptyNameError'));
       return;
     }
 
@@ -75,7 +77,7 @@ export function RenameDialog({
       
       // Ensure the name is not empty
       if (!finalName.trim()) {
-        toast.error('Name cannot be empty');
+        toast.error(t('renameDialog.nameRequiredError'));
         setRenaming(false);
         return;
       }
@@ -135,40 +137,40 @@ export function RenameDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Rename {object?.isFolder ? 'Folder' : 'File'}
+            {t('renameDialog.title', { type: object?.isFolder ? t('common.folder') : t('common.file') })}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
           <div>
             <label htmlFor="newName" className="text-sm font-medium">
-              New Name
+              {t('renameDialog.newNameLabel')}
             </label>
             <Input
               id="newName"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Enter new name"
+              placeholder={t('renameDialog.placeholder')}
               disabled={renaming}
               className="mt-1"
             />
           </div>
 
           <div className="text-sm text-muted-foreground">
-            Current name: {getCurrentName()}
+            {t('renameDialog.currentName', { name: getCurrentName() })}
           </div>
         </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button variant="outline" onClick={handleClose} disabled={renaming}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={handleRename} 
             disabled={renaming || !newName.trim() || newName === getCurrentName()}
           >
-            {renaming ? 'Renaming...' : 'Rename'}
+            {renaming ? t('renameDialog.renaming') : t('common.rename')}
           </Button>
         </div>
       </DialogContent>

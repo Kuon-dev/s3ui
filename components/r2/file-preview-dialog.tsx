@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,7 @@ interface FilePreviewDialogProps {
  * Handles images, audio, video, text files, and PDFs with appropriate viewers.
  */
 export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogProps) {
+  const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -131,7 +133,7 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading preview...</p>
+            <p className="text-muted-foreground">{t('filePreview.loading')}</p>
           </div>
         </div>
       );
@@ -142,11 +144,11 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-red-400 mb-2">Preview Error</p>
+            <p className="text-red-400 mb-2">{t('filePreview.error')}</p>
             <p className="text-gray-400 text-sm mb-4">{error}</p>
             <Button onClick={handleDownload} variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
-              Download File
+              {t('filePreview.downloadFile')}
             </Button>
           </div>
         </div>
@@ -207,7 +209,7 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
                           transform: `scale(${imageScale}) rotate(${imageRotation}deg)`,
                           transformOrigin: 'center',
                         }}
-                        onError={() => setError('Failed to load image')}
+                        onError={() => setError(t('errors.failedToLoadImage'))}
                         draggable={false}
                       />
                     </div>
@@ -237,7 +239,7 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
                 onPause={() => setIsPlaying(false)}
               >
                 <source src={previewUrl} type={fileType.mimeType} />
-                Your browser does not support audio playback.
+                {t('filePreview.audioNotSupported')}
               </audio>
             )}
           </div>
@@ -256,7 +258,7 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
                 onPause={() => setIsPlaying(false)}
               >
                 <source src={previewUrl} type={fileType.mimeType} />
-                Your browser does not support video playback.
+                {t('filePreview.videoNotSupported')}
               </video>
             )}
           </div>
@@ -267,10 +269,10 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
           return (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
-                <span className="text-sm text-gray-400">PDF Document</span>
+                <span className="text-sm text-gray-400">{t('filePreview.pdfDocument')}</span>
                 <Button onClick={handleDownload} variant="outline" size="sm">
                   <Download className="h-4 w-4 mr-2" />
-                  Download
+                  {t('common.download')}
                 </Button>
               </div>
               
@@ -291,10 +293,10 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
               <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
                 <div className="flex items-center space-x-2">
                   <FileText className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-400">Text Document</span>
+                  <span className="text-sm text-gray-400">{t('filePreview.textDocument')}</span>
                 </div>
                 <span className="text-sm text-gray-500">
-                  {textContent.length} characters
+                  {t('filePreview.characterCount', { count: textContent.length })}
                 </span>
               </div>
               
@@ -314,13 +316,13 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <FileText className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 mb-2">Preview not available</p>
+              <p className="text-gray-400 mb-2">{t('filePreview.notAvailable')}</p>
               <p className="text-gray-500 text-sm mb-4">
-                {fileType.description} files cannot be previewed
+                {t('filePreview.cannotPreview', { type: fileType.description })}
               </p>
               <Button onClick={handleDownload} variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
-                Download File
+                {t('filePreview.downloadFile')}
               </Button>
             </div>
           </div>
@@ -354,7 +356,7 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Button onClick={handleDownload} variant="ghost" size="sm" className="glass-subtle hover-lift">
                   <Download className="h-4 w-4" />
-                  <span className="ml-2 text-xs hidden sm:inline">Download</span>
+                  <span className="ml-2 text-xs hidden sm:inline">{t('common.download')}</span>
                 </Button>
                 <Button onClick={onClose} variant="ghost" size="icon" className="h-8 w-8 glass-subtle hover-lift">
                   <X className="h-4 w-4" />
@@ -369,7 +371,7 @@ export function FilePreviewDialog({ isOpen, onClose, file }: FilePreviewDialogPr
               {fileType && !fileType.previewable && (
                 <>
                   <span className="text-xs flex-shrink-0">•</span>
-                  <span className="text-amber-500/80 whitespace-nowrap">Preview may be limited</span>
+                  <span className="text-amber-500/80 whitespace-nowrap">{t('filePreview.previewLimited')}</span>
                 </>
               )}
             </div>

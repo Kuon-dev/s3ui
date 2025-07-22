@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { motion } from 'motion/react';
 import {
   Upload,
@@ -12,7 +13,6 @@ import {
   ChevronRight,
   Grid3X3,
   List,
-  Command,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ButtonEnhanced } from '@/components/ui/button-enhanced';
@@ -54,6 +54,7 @@ export function FileBrowserHeader({
   itemCount = 0,
   selectedCount = 0,
 }: FileBrowserHeaderProps) {
+  const t = useTranslations();
   const typography = useTypography();
   const setShowSettings = useUIStateStore(state => state.setShowSettings);
   const uiDensity = useUIStateStore(state => state.uiDensity);
@@ -61,7 +62,7 @@ export function FileBrowserHeader({
   // Parse breadcrumb from path
   const pathParts = currentPath.split('/').filter(Boolean);
   const breadcrumbs = [
-    { label: 'Home', path: '' },
+    { label: t('common.home'), path: '' },
     ...pathParts.map((part, index) => ({
       label: part,
       path: pathParts.slice(0, index + 1).join('/'),
@@ -121,7 +122,7 @@ export function FileBrowserHeader({
         
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          <Tooltip content="Toggle view mode" side="bottom">
+          <Tooltip content={t('headerTooltips.toggleView')} side="bottom">
             <Button
               variant="ghost"
               size="icon"
@@ -145,7 +146,7 @@ export function FileBrowserHeader({
             className="gap-2"
           >
             <FolderPlus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Folder</span>
+            <span className="hidden sm:inline">{t('fileBrowser.newFolderButton')}</span>
           </ButtonEnhanced>
           
           <ButtonEnhanced
@@ -156,12 +157,12 @@ export function FileBrowserHeader({
             elevation="sm"
           >
             <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Upload</span>
+            <span className="hidden sm:inline">{t('fileBrowser.uploadButton')}</span>
           </ButtonEnhanced>
           
           <Separator orientation="vertical" className="h-6" />
           
-          <Tooltip content="Refresh" side="bottom">
+          <Tooltip content={t('contextMenu.refresh')} side="bottom">
             <Button
               variant="ghost"
               size="icon"
@@ -173,7 +174,7 @@ export function FileBrowserHeader({
             </Button>
           </Tooltip>
           
-          <Tooltip content="Settings (⌘,)" side="bottom">
+          <Tooltip content={t('headerTooltips.settings')} side="bottom">
             <Button
               variant="ghost"
               size="icon"
@@ -193,7 +194,7 @@ export function FileBrowserHeader({
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
-            placeholder="Search files and folders..."
+            placeholder={t('globalSearch.placeholder')}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className={cn(
@@ -213,7 +214,7 @@ export function FileBrowserHeader({
           {selectedCount > 0 && (
             <>
               <Badge variant="secondary" className="gap-1">
-                <span className={typography.small()}>{selectedCount} selected</span>
+                <span className={typography.small()}>{t('header.selectedCount', { count: selectedCount })}</span>
               </Badge>
               <Separator orientation="vertical" className="h-4" />
             </>
@@ -224,7 +225,7 @@ export function FileBrowserHeader({
             animate={{ opacity: 1 }}
             key={itemCount}
           >
-            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            {t('header.itemCount', { count: itemCount })}
           </motion.span>
         </div>
       </div>

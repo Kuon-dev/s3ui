@@ -25,7 +25,6 @@ interface FileGridItemProps {
   onContextMenu: (e: React.MouseEvent) => void;
   onPreview?: () => void;
   onDownload?: () => void;
-  draggable?: boolean;
   className?: string;
 }
 
@@ -38,7 +37,6 @@ export function FileGridItem({
   onContextMenu,
   onPreview,
   onDownload,
-  draggable = true,
   className,
 }: FileGridItemProps) {
   const typography = useTypography();
@@ -49,9 +47,10 @@ export function FileGridItem({
   const [isHovered, setIsHovered] = React.useState(false);
   const [showActions, setShowActions] = React.useState(false);
   
-  const Icon = object.isFolder ? Folder : getFileIcon(object.name);
-  const fileType = getFileType(object.name);
-  const isImage = fileType === 'image' && showThumbnails;
+  const filename = object.key.split('/').pop() || object.key;
+  const Icon = object.isFolder ? Folder : getFileIcon(filename);
+  const fileType = getFileType(filename);
+  const isImage = fileType.category === 'image' && showThumbnails;
   
   const densityConfig = {
     compact: {
@@ -181,7 +180,7 @@ export function FileGridItem({
             {isImage ? (
               <img
                 src={`/api/r2/preview?key=${encodeURIComponent(object.key)}`}
-                alt={object.name}
+                alt={filename}
                 className="w-full h-full object-cover rounded-lg"
                 style={{ maxWidth: thumbnailSize, maxHeight: thumbnailSize }}
               />
@@ -203,7 +202,7 @@ export function FileGridItem({
                   typography.tiny()
                 )}
               >
-                {fileType.toUpperCase()}
+                {filename.split('.').pop()?.toUpperCase() || ''}
               </Badge>
             )}
           </motion.div>
@@ -215,7 +214,7 @@ export function FileGridItem({
               typography.body(),
               isSelected && "text-primary"
             )}>
-              {object.name}
+              {filename}
             </p>
           </div>
           

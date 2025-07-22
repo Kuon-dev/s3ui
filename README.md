@@ -9,7 +9,8 @@ A modern, desktop-focused file manager for Cloudflare R2 storage built with Next
 - **Background Processing**: Service worker-powered uploads for large files
 - **Folder Navigation**: Browse and organize files in a familiar folder structure
 - **File Preview**: Preview images and supported file types
-- **Dark Theme**: Beautiful dark UI using Shadcn components
+- **Dark Theme**: Beautiful dark UI using Shadcn components with 12+ theme options
+- **Internationalization**: Support for 6 languages (English, Spanish, French, German, Japanese, Chinese)
 - **Desktop Optimized**: Designed for desktop use with keyboard shortcuts
 
 ## Screenshots

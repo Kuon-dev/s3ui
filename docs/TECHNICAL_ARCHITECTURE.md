@@ -49,6 +49,7 @@ The application follows a modern React-based architecture with server-side API r
 - **Shadcn UI**: Comprehensive component library
 - **Motion (Framer Motion)**: Advanced animations with spring presets
 - **Zustand**: State management with persistence
+- **next-intl**: Internationalization with 6 language support
 - **TanStack Query**: Data fetching (installed, ready for migration)
 - **CMDK**: Command palette for search functionality
 - **Sonner**: Toast notifications for user feedback
@@ -85,6 +86,7 @@ The application uses a modular state management architecture with specialized Zu
 - **`drag-drop-store.ts`**: Drag and drop state management
 - **`ui-state-store.ts`**: UI preferences, dialogs, and search
 - **`clipboard-store.ts`**: Cut/copy/paste operations
+- **`locale-store.ts`**: Language preferences and i18n state
 
 #### File Browser Store (`lib/stores/file-browser-store.ts`)
 Zustand-based central state management:

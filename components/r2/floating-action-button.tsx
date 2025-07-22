@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Upload, FolderPlus, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,12 +14,13 @@ interface FloatingActionButtonProps {
 }
 
 export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActionButtonProps) {
+  const t = useTranslations();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const actions = [
     {
       icon: Upload,
-      label: 'Upload files',
+      label: t('fab.uploadFiles'),
       onClick: () => {
         onUpload();
         setIsExpanded(false);
@@ -27,7 +29,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
     },
     {
       icon: FolderPlus,
-      label: 'New folder',
+      label: t('fab.newFolder'),
       onClick: () => {
         onCreateFolder();
         setIsExpanded(false);
@@ -95,7 +97,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
         transition={springPresets.snappy}
       >
         <Tooltip 
-          content={isExpanded ? "Close" : "Quick actions"} 
+          content={isExpanded ? t('common.close') : t('fab.quickActions')} 
           side="left"
         >
           <Button
@@ -107,7 +109,7 @@ export function FloatingActionButton({ onUpload, onCreateFolder }: FloatingActio
               transition-colors
             `}
             onClick={() => setIsExpanded(!isExpanded)}
-            aria-label={isExpanded ? "Close quick actions" : "Open quick actions"}
+            aria-label={isExpanded ? t('fab.closeQuickActions') : t('fab.openQuickActions')}
             aria-expanded={isExpanded}
           >
             <motion.div

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import {
   FolderPlus,
   Upload,
@@ -56,6 +57,7 @@ export function UnifiedContextMenu({
   onExpandAll,
   onCollapseAll,
 }: UnifiedContextMenuProps) {
+  const t = useTranslations();
   const { setShowUploadDialog } = useFileBrowserStore();
   const { 
     hasItems: hasClipboardItems,
@@ -105,35 +107,35 @@ export function UnifiedContextMenu({
       {isFolder && onNavigate && (
         <ContextMenuItem onClick={onNavigate}>
           <FolderOpen className="h-4 w-4 mr-2" />
-          Open
+          {t('common.open')}
         </ContextMenuItem>
       )}
       
       {!isFolder && context === 'table' && (
         <ContextMenuItem onClick={() => handlePreview(object as R2Object)}>
           <Eye className="h-4 w-4 mr-2" />
-          {isPreviewable ? 'Preview' : 'Open'}
+          {isPreviewable ? t('common.preview') : t('common.open')}
         </ContextMenuItem>
       )}
       
       {isFolder && onCreateFolder && (
         <ContextMenuItem onClick={onCreateFolder}>
           <FolderPlus className="h-4 w-4 mr-2" />
-          New Folder
+          {t('contextMenu.newFolder')}
         </ContextMenuItem>
       )}
       
       {isFolder && context === 'file-tree' && (
         <ContextMenuItem onClick={handleUpload}>
           <Upload className="h-4 w-4 mr-2" />
-          Upload Files
+          {t('contextMenu.uploadFiles')}
         </ContextMenuItem>
       )}
       
       {!isFolder && (
         <ContextMenuItem onClick={() => handleDownload(object as R2Object)}>
           <Download className="h-4 w-4 mr-2" />
-          Download
+          {t('common.download')}
         </ContextMenuItem>
       )}
       
@@ -142,20 +144,20 @@ export function UnifiedContextMenu({
       {/* Edit Actions */}
       <ContextMenuItem onClick={() => handleCopy(object, currentPath)}>
         <Copy className="h-4 w-4 mr-2" />
-        Copy
+        {t('common.copy')}
         <ContextMenuShortcut>⌘C</ContextMenuShortcut>
       </ContextMenuItem>
       
       <ContextMenuItem onClick={() => handleCut(object, currentPath)}>
         <Scissors className="h-4 w-4 mr-2" />
-        Cut
+        {t('common.cut')}
         <ContextMenuShortcut>⌘X</ContextMenuShortcut>
       </ContextMenuItem>
       
       {hasClipboardItems() && canPaste(isFolder ? objectKey : currentPath) && (
         <ContextMenuItem onClick={handlePaste}>
           <ClipboardPaste className="h-4 w-4 mr-2" />
-          Paste {clipboardItems.length} item(s) ({clipboardOperation})
+          {t('contextMenu.pasteItems', { count: clipboardItems.length, operation: clipboardOperation || '' })}
           <ContextMenuShortcut>⌘V</ContextMenuShortcut>
         </ContextMenuItem>
       )}
@@ -164,7 +166,7 @@ export function UnifiedContextMenu({
       
       <ContextMenuItem onClick={() => handleRename(object)}>
         <Edit className="h-4 w-4 mr-2" />
-        Rename
+        {t('common.rename')}
         <ContextMenuShortcut>F2</ContextMenuShortcut>
       </ContextMenuItem>
       
@@ -173,7 +175,7 @@ export function UnifiedContextMenu({
         className="text-destructive focus:text-destructive"
       >
         <Trash2 className="h-4 w-4 mr-2" />
-        Delete
+        {t('common.delete')}
         <ContextMenuShortcut>⌦</ContextMenuShortcut>
       </ContextMenuItem>
       
@@ -185,14 +187,14 @@ export function UnifiedContextMenu({
           {onExpandAll && (
             <ContextMenuItem onClick={onExpandAll}>
               <ChevronDown className="h-4 w-4 mr-2" />
-              Expand All
+              {t('contextMenu.expandAll')}
             </ContextMenuItem>
           )}
           
           {onCollapseAll && (
             <ContextMenuItem onClick={onCollapseAll}>
               <ChevronRight className="h-4 w-4 mr-2" />
-              Collapse All
+              {t('contextMenu.collapseAll')}
             </ContextMenuItem>
           )}
           
@@ -205,7 +207,7 @@ export function UnifiedContextMenu({
         <>
           <ContextMenuItem onClick={onRefresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            {t('contextMenu.refresh')}
             <ContextMenuShortcut>⌘R</ContextMenuShortcut>
           </ContextMenuItem>
           
@@ -217,12 +219,12 @@ export function UnifiedContextMenu({
       {context === 'file-tree' ? (
         <ContextMenuItem onClick={() => handleCopyPath(objectKey)}>
           <Link className="h-4 w-4 mr-2" />
-          Copy Path
+          {t('contextMenu.copyPath')}
         </ContextMenuItem>
       ) : (
         <ContextMenuItem onClick={() => handleCopyUrl(object)}>
           <Link className="h-4 w-4 mr-2" />
-          Copy URL
+          {t('contextMenu.copyUrl')}
         </ContextMenuItem>
       )}
     </>

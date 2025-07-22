@@ -12,7 +12,8 @@ import {
   Sparkles,
   ChevronDown,
   Settings2,
-  Check
+  Check,
+  Globe
 } from 'lucide-react';
 import { 
   useUIStateStore,
@@ -40,6 +41,8 @@ import {
 import { densityConfig, type UIDensityConfig } from '@/lib/spacing';
 import { springPresets } from '@/lib/animations';
 import { ThemeSelector } from './theme-selector';
+import { LanguageSwitcher } from './language-switcher';
+import { useTranslations, useSettingsTranslations } from '@/hooks/use-translations';
 
 type SettingsSection = 'theme' | 'appearance' | 'file-display' | 'behavior';
 
@@ -50,16 +53,17 @@ const sectionIcons: Record<SettingsSection, React.ReactNode> = {
   behavior: <MousePointer className="h-4 w-4" />,
 };
 
-const sectionLabels: Record<SettingsSection, string> = {
-  theme: 'Theme',
-  appearance: 'Appearance',
-  'file-display': 'File Display',
-  behavior: 'Behavior',
-};
-
-
 export function SettingsDialog() {
   const typography = useTypography();
+  const t = useSettingsTranslations();
+  const tSuccess = useTranslations('success');
+  
+  const sectionLabels: Record<SettingsSection, string> = {
+    theme: t('theme'),
+    appearance: t('appearance'),
+    'file-display': t('fileDisplay'),
+    behavior: t('behavior'),
+  };
   const showSettings = useUIStateStore(state => state.showSettings);
   const setShowSettings = useUIStateStore(state => state.setShowSettings);
   const [activeSection, setActiveSection] = useState<SettingsSection>('theme');
@@ -72,8 +76,8 @@ export function SettingsDialog() {
   
   const handleReset = () => {
     resetSettings();
-    toast.success('Settings reset to defaults', {
-      description: 'All preferences have been restored to their original values.',
+    toast.success(tSuccess('settingsReset'), {
+      description: tSuccess('settingsResetDescription'),
       duration: 3000,
     });
     setHasChanges(false);
@@ -107,12 +111,12 @@ export function SettingsDialog() {
               transition={springPresets.gentle}
             >
               <div className="p-6 pb-4 space-y-4">
-                <h2 className={typography.h2()}>Settings</h2>
+                <h2 className={typography.h2()}>{t('title')}</h2>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
                     type="text"
-                    placeholder="Search settings..."
+                    placeholder={t('searchPlaceholder')}
                     className="h-10 bg-background/50"
                     style={{ paddingLeft: '36px' }}
                     value={searchQuery}
@@ -159,7 +163,7 @@ export function SettingsDialog() {
                   className="w-full justify-start gap-3 px-4 py-3 h-auto font-normal text-muted-foreground hover:text-foreground"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  <span>Reset All Settings</span>
+                  <span>{t('resetAll')}</span>
                 </Button>
               </div>
             </motion.aside>
@@ -178,7 +182,7 @@ export function SettingsDialog() {
                       </DialogTitle>
                     </div>
                     <p className={cn('ml-11', typography.caption())}>
-                      Customize your experience
+                      {t('customizeExperience')}
                     </p>
                   </div>
                   <motion.div
@@ -254,7 +258,7 @@ export function SettingsDialog() {
                   <kbd className={cn('px-2 py-1 font-mono bg-muted/50 rounded border border-border/50', typography.tiny())}>
                     ⌘ ,
                   </kbd>
-                  <span>to open settings</span>
+                  <span>{t('shortcutHint').split('⌘')[1]}</span>
                 </div>
                 
                 <AnimatePresence>
@@ -271,7 +275,7 @@ export function SettingsDialog() {
                       >
                         <Check className="h-4 w-4 text-green-500" />
                       </motion.div>
-                      <span className="text-muted-foreground">Settings saved automatically</span>
+                      <span className="text-muted-foreground">{t('autoSave')}</span>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -388,6 +392,7 @@ function AppearanceSettings({
   density: UIDensityConfig['default'];
 }) {
   const typography = useTypography();
+  const t = useSettingsTranslations();
   const uiDensity = useUIStateStore(state => state.uiDensity);
   const setUIDensity = useUIStateStore(state => state.setUIDensity);
 
@@ -395,8 +400,8 @@ function AppearanceSettings({
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* UI Density with Visual Preview */}
       <CollapsibleSection
-        title="Interface Density"
-        description="Adjust spacing to match your preference"
+        title={t('interfaceDensity')}
+        description={t('densityDescription')}
         expanded={expandedSections.has('density')}
         onToggle={() => toggleSection('density')}
         density={density}
@@ -426,11 +431,11 @@ function AppearanceSettings({
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value={densityOption} id={densityOption} />
                   <div>
-                    <p className="font-medium capitalize">{densityOption}</p>
+                    <p className="font-medium capitalize">{t(densityOption)}</p>
                     <p className={typography.caption()}>
-                      {densityOption === 'compact' && 'More content visible'}
-                      {densityOption === 'default' && 'Balanced spacing'}
-                      {densityOption === 'spacious' && 'More breathing room'}
+                      {densityOption === 'compact' && t('compactDescription')}
+                      {densityOption === 'default' && t('defaultDescription')}
+                      {densityOption === 'spacious' && t('spaciousDescription')}
                     </p>
                   </div>
                 </div>
@@ -458,6 +463,20 @@ function AppearanceSettings({
         </div>
       </CollapsibleSection>
       
+      {/* Language Selection */}
+      <CollapsibleSection
+        title={t('language')}
+        description={t('languageDescription')}
+        expanded={expandedSections.has('language')}
+        onToggle={() => toggleSection('language')}
+        density={density}
+        icon={<Globe className="h-5 w-5" />}
+      >
+        <div className="mt-4">
+          <LanguageSwitcher />
+        </div>
+      </CollapsibleSection>
+      
     </div>
   );
 }
@@ -471,6 +490,7 @@ function FileDisplaySettings({
   density: UIDensityConfig['default'];
 }) {
   const typography = useTypography();
+  const t = useSettingsTranslations();
   const showHiddenFiles = useUIStateStore(state => state.showHiddenFiles);
   const showThumbnails = useUIStateStore(state => state.showThumbnails);
   const thumbnailSize = useUIStateStore(state => state.thumbnailSize);
@@ -488,10 +508,10 @@ function FileDisplaySettings({
         >
           <div>
             <Label htmlFor="hidden-files" className={cn('cursor-pointer', typography.label())}>
-              Show Hidden Files
+              {t('showHiddenFiles')}
             </Label>
             <p className={cn('mt-0.5', typography.caption())}>
-              Display files and folders starting with a dot
+              {t('hiddenFilesDescription')}
             </p>
           </div>
           <Switch
@@ -510,10 +530,10 @@ function FileDisplaySettings({
         >
           <div>
             <Label htmlFor="show-thumbnails" className={cn('cursor-pointer', typography.label())}>
-              Show Thumbnails
+              {t('showThumbnails')}
             </Label>
             <p className={cn('mt-0.5', typography.caption())}>
-              Preview images in grid view
+              {t('thumbnailsDescription')}
             </p>
           </div>
           <Switch
@@ -538,7 +558,7 @@ function FileDisplaySettings({
           >
             <div className="flex items-center justify-between">
               <Label htmlFor="thumbnail-size" className={typography.label()}>
-                Thumbnail Size
+                {t('thumbnailSize')}
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -607,6 +627,7 @@ function BehaviorSettings({
   density: UIDensityConfig['default'];
 }) {
   const typography = useTypography();
+  const t = useSettingsTranslations();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
@@ -614,9 +635,9 @@ function BehaviorSettings({
         <div className="p-4 bg-muted/30 rounded-lg inline-block mb-4">
           <MousePointer className="h-12 w-12 text-muted-foreground" />
         </div>
-        <h3 className={cn('mb-2', typography.h3())}>Behavior Settings</h3>
+        <h3 className={cn('mb-2', typography.h3())}>{t('behaviorSettings')}</h3>
         <p className={cn(typography.body(), 'text-muted-foreground')}>
-          Behavior customization options will be available in a future update.
+          {t('behaviorComingSoon')}
         </p>
       </div>
     </div>

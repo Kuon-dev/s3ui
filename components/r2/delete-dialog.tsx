@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,6 +27,7 @@ export function DeleteDialog({
 }: DeleteDialogProps) {
   const [deleting, setDeleting] = useState(false);
   const { deleteObject } = useFileBrowserStore();
+  const t = useTranslations();
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -76,10 +78,10 @@ export function DeleteDialog({
             </div>
             <div className="flex-1 pt-1">
               <h2 className="text-lg font-semibold text-foreground">
-                Delete {object?.isFolder ? 'folder' : 'file'}?
+                {t('deleteDialog.title', { type: object?.isFolder ? t('common.folder') : t('common.file') })}
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                This action cannot be undone
+                {t('deleteDialog.cannotUndo')}
               </p>
             </div>
           </div>
@@ -101,7 +103,7 @@ export function DeleteDialog({
               <p className="text-sm text-destructive flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                 <span>
-                  All files and subfolders inside <strong className="font-semibold">{itemName}</strong> will be permanently deleted.
+                  {t.rich('deleteDialog.folderWarning', { name: itemName, strong: (chunks) => <strong className="font-semibold">{chunks}</strong> })}
                 </span>
               </p>
             </div>
@@ -110,8 +112,8 @@ export function DeleteDialog({
           {/* Additional info */}
           <p className="text-xs text-muted-foreground leading-relaxed">
             {object?.isFolder 
-              ? 'This will permanently remove the folder and all of its contents from your storage.' 
-              : 'This file will be permanently removed from your storage.'}
+              ? t('deleteDialog.folderDescription') 
+              : t('deleteDialog.fileDescription')}
           </p>
         </div>
 
@@ -124,7 +126,7 @@ export function DeleteDialog({
               disabled={deleting}
               className="min-w-[80px]"
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button 
               variant="destructive"
@@ -138,10 +140,10 @@ export function DeleteDialog({
               {deleting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Deleting</span>
+                  <span>{t('deleteDialog.deleting')}</span>
                 </>
               ) : (
-                'Delete'
+                t('common.delete')
               )}
             </Button>
           </div>

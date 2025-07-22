@@ -54,11 +54,12 @@ const buttonEnhancedVariants = cva(
 );
 
 export interface ButtonEnhancedProps
-  extends Omit<HTMLMotionProps<"button">, "size">,
+  extends Omit<HTMLMotionProps<"button">, "size" | "children">,
     VariantProps<typeof buttonEnhancedVariants> {
   asChild?: boolean;
   loading?: boolean;
   ripple?: boolean;
+  children?: React.ReactNode;
 }
 
 const ButtonEnhanced = React.forwardRef<HTMLButtonElement, ButtonEnhancedProps>(
@@ -94,16 +95,34 @@ const ButtonEnhanced = React.forwardRef<HTMLButtonElement, ButtonEnhancedProps>(
       onClick?.(e);
     };
     
+    // Separate motion props from regular props
+    const motionSpecificProps = ['whileHover', 'whileTap', 'transition', 'animate', 'initial', 'exit'];
+    const restProps: Record<string, unknown> = {};
+    const motionPropsFromInput: Record<string, unknown> = {};
+    
+    Object.entries(props).forEach(([key, value]) => {
+      if (motionSpecificProps.includes(key)) {
+        motionPropsFromInput[key] = value;
+      } else {
+        restProps[key] = value;
+      }
+    });
+    
+    const motionProps = !asChild ? {
+      whileHover: !disabled && !loading ? { scale: 1.02 } : {},
+      whileTap: !disabled && !loading ? { scale: 0.98 } : {},
+      transition: springPresets.gentle,
+      ...motionPropsFromInput,
+    } : {};
+    
     return (
       <Comp
         className={cn(buttonEnhancedVariants({ variant, size, elevation, className }))}
         ref={ref}
         disabled={disabled || loading}
         onClick={handleClick}
-        whileHover={!disabled && !loading ? { scale: 1.02 } : {}}
-        whileTap={!disabled && !loading ? { scale: 0.98 } : {}}
-        transition={springPresets.gentle}
-        {...props}
+        {...motionProps}
+        {...restProps}
       >
         {/* Loading spinner */}
         {loading && (

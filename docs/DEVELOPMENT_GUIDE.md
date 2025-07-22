@@ -32,6 +32,7 @@ This guide provides comprehensive information for developers working on the Clou
   - Tailwind CSS IntelliSense
   - Motion DevTools (for animation debugging)
   - Zustand DevTools (for state debugging)
+  - i18n Ally (for translation management)
 
 ### Development Environment
 
@@ -157,9 +158,15 @@ s3ui/
 │   ├── r2/               # R2 operations & client
 │   ├── stores/           # Zustand state management
 │   │   ├── file-browser-store.ts  # Main store
-│   │   └── theme-store.ts         # Theme store
+│   │   ├── theme-store.ts         # Theme store
+│   │   └── locale-store.ts        # Locale/language store
 │   ├── hooks/            # Custom React hooks
+│   │   └── use-translations.ts    # i18n hook
 │   └── utils/            # Utility functions
+├── messages/             # i18n translation files
+│   ├── en.json          # English translations
+│   ├── es.json          # Spanish translations
+│   └── ...              # Other language files
 ├── public/               # Static assets
 │   └── upload-sw.js     # Service Worker v2.0
 ├── docs/                 # Documentation
@@ -370,6 +377,44 @@ components/
    
    // ❌ Bad: Hard-coded colors
    <div className="bg-gray-900 text-white">
+   ```
+
+### Internationalization (i18n) Guidelines
+
+1. **Using Translations**
+   ```typescript
+   // ✅ Good: Using translation hook
+   import { useTranslations } from '@/hooks/use-translations';
+   
+   export function Component() {
+     const t = useTranslations('common');
+     return <button>{t('save')}</button>;
+   }
+   
+   // ❌ Bad: Hardcoded strings
+   export function Component() {
+     return <button>Save</button>;
+   }
+   ```
+
+2. **Translation Keys**
+   ```typescript
+   // ✅ Good: Descriptive, hierarchical keys
+   t('fileBrowser.actions.deleteConfirm')
+   t('errors.fileNotFound')
+   
+   // ❌ Bad: Unclear or flat keys
+   t('delete_confirm_msg')
+   t('err1')
+   ```
+
+3. **Dynamic Content**
+   ```typescript
+   // ✅ Good: Using variables
+   t('itemsSelected', { count: 5 }) // "5 items selected"
+   
+   // ❌ Bad: String concatenation
+   `${count} items selected`
    ```
 
 2. **Glassmorphism Effects**

@@ -1,29 +1,14 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 
-import { FileBrowser } from '@/components/r2/file-browser';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { useEffect, useState } from 'react';
-
-export default function Home() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
-      <div className="h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-screen bg-background overflow-hidden animate-fade-in">
-      <ErrorBoundary>
-        <FileBrowser />
-      </ErrorBoundary>
-    </div>
-  );
+export default async function RootPage() {
+  // Get the preferred locale from headers or default to 'en'
+  const headersList = await headers();
+  const acceptLanguage = headersList.get('accept-language') || '';
+  
+  // Simple locale detection
+  let locale = 'en';
+  if (acceptLanguage.includes('zh')) locale = 'zh';
+  
+  redirect(`/${locale}`);
 }

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useClipboardStore } from '@/lib/stores/clipboard-store';
 import { useFileBrowserStore } from '@/lib/stores/file-browser-store';
 import { useFileOperations } from './use-file-operations';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
  * Common file operations that can be used by both file tree and table views
  */
 export function useCommonFileOperations() {
+  const t = useTranslations();
   const {
     setSelectedObject,
     setShowRenameDialog,
@@ -30,8 +32,8 @@ export function useCommonFileOperations() {
     const isFolder = isR2Object ? (object.isFolder || false) : object.isFolder;
     
     copyToClipboard([{ key, name, isFolder }], sourcePath);
-    toast.success(`Copied "${name}" to clipboard`);
-  }, [copyToClipboard]);
+    toast.success(t('success.copiedItem', { name }));
+  }, [copyToClipboard, t]);
   
   const handleCut = useCallback((object: R2Object | { key: string; name: string; isFolder: boolean }, sourcePath: string) => {
     const isR2Object = 'size' in object;
@@ -40,8 +42,8 @@ export function useCommonFileOperations() {
     const isFolder = isR2Object ? (object.isFolder || false) : object.isFolder;
     
     cutToClipboard([{ key, name, isFolder }], sourcePath);
-    toast.success(`Cut "${name}" to clipboard`);
-  }, [cutToClipboard]);
+    toast.success(t('success.cutItem', { name }));
+  }, [cutToClipboard, t]);
 
   const handleRename = useCallback((object: R2Object | { key: string; name: string; isFolder: boolean }) => {
     // Convert to R2Object format if needed
@@ -84,20 +86,20 @@ export function useCommonFileOperations() {
       const key = object.key;
       const url = `${window.location.origin}/api/r2/preview?key=${encodeURIComponent(key)}`;
       await navigator.clipboard.writeText(url);
-      toast.success('URL copied to clipboard');
+      toast.success(t('success.urlCopied'));
     } catch {
-      toast.error('Failed to copy URL');
+      toast.error(t('errors.failedToCopyUrl'));
     }
-  }, []);
+  }, [t]);
 
   const handleCopyPath = useCallback(async (path: string) => {
     try {
       await navigator.clipboard.writeText(path);
-      toast.success('Path copied to clipboard');
+      toast.success(t('success.pathCopied'));
     } catch {
-      toast.error('Failed to copy path');
+      toast.error(t('errors.failedToCopyPath'));
     }
-  }, []);
+  }, [t]);
 
   return {
     handleCopy,
