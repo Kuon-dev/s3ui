@@ -35,6 +35,13 @@ class CrossTabSync {
 
   private initialize(): void {
     try {
+      // Check if we're in browser environment
+      if (typeof window === 'undefined') {
+        console.warn('CrossTabSync: Running in SSR mode - skipping initialization');
+        this.enabled = false;
+        return;
+      }
+
       this.channel = new BroadcastChannel('r2-file-manager-sync');
       
       // Listen for messages from other tabs

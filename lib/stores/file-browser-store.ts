@@ -689,7 +689,16 @@ export const useFileBrowserStore = create<FileBrowserState>()(
         }
         
         // Normalize the folder name
-        const normalizedName = validation.normalizedPath?.split('/').pop() || name;
+        // Remove trailing slash before getting the folder name
+        const normalizedPath = validation.normalizedPath?.replace(/\/$/, '') || name;
+        const normalizedName = normalizedPath.split('/').pop() || name;
+        
+        // Ensure the folder name is not empty
+        if (!normalizedName.trim()) {
+          toast.error('Folder name cannot be empty');
+          return;
+        }
+        
         const folderPath = currentPath ? `${currentPath}/${normalizedName}` : normalizedName;
         
         // Check for conflicting operations

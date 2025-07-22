@@ -338,7 +338,7 @@ export function R2FileTree({ currentPath, onNavigate, className }: R2FileTreePro
         <h2 className={cn('font-semibold text-foreground mb-grid-3', typography.h4())}>Folders</h2>
         
         {/* Search */}
-        <div className="relative">
+        <div className="relative mt-2">
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Search folders..."

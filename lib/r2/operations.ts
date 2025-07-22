@@ -100,7 +100,29 @@ export async function listObjects(prefix: string = ''): Promise<R2Object[]> {
  * @public
  */
 export async function createFolder(folderPath: string): Promise<void> {
-  const key = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
+  // Validate folder path
+  if (!folderPath || folderPath.trim() === '') {
+    throw new Error('Folder path cannot be empty');
+  }
+  
+  // Remove trailing slashes and validate the folder name
+  const normalizedPath = folderPath.replace(/\/+$/, '');
+  if (!normalizedPath || normalizedPath === '') {
+    throw new Error('Folder path cannot be empty or contain only slashes');
+  }
+  
+  // Check for double slashes in the path
+  if (normalizedPath.includes('//')) {
+    throw new Error('Folder path cannot contain consecutive slashes');
+  }
+  
+  // Ensure the folder has a name (not just a path ending with /)
+  const folderName = normalizedPath.split('/').pop();
+  if (!folderName || folderName.trim() === '') {
+    throw new Error('Folder must have a valid name');
+  }
+  
+  const key = normalizedPath + '/';
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: key,

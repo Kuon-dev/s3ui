@@ -1260,25 +1260,26 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                 handleFileUpload(fileList.files);
               }}
               currentPath={currentPath}
-              className="flex-1 overflow-hidden"
+              className="flex-1 overflow-hidden h-full"
             >
-              <ScrollArea className="h-full">
-                <div className="p-3">
-                {loading ? (
-                  <div className="flex items-center justify-center h-full">
+              {(loading || sortedObjects.length === 0) ? (
+                <div className="h-full flex items-center justify-center p-3">
+                  {loading ? (
                     <div className="text-center space-y-grid-3">
                       <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                       <p className="text-muted-foreground">Loading files...</p>
                     </div>
-                  </div>
-                ) : sortedObjects.length === 0 ? (
-                  <EmptyState
-                    type={searchQuery ? 'no-search-results' : 'empty-folder'}
-                    searchQuery={searchQuery}
-                    onAction={searchQuery ? undefined : () => setShowUploadDialog(true)}
-                  />
-                ) : (
-                  <div>
+                  ) : (
+                    <EmptyState
+                      type={searchQuery ? 'no-search-results' : 'empty-folder'}
+                      searchQuery={searchQuery}
+                      onAction={searchQuery ? undefined : () => setShowUploadDialog(true)}
+                    />
+                  )}
+                </div>
+              ) : (
+                <ScrollArea className="h-full">
+                  <div className="p-3">
                     {/* Column Headers for List View */}
                     {viewMode === 'list' && (
                       <motion.div 
@@ -1470,9 +1471,8 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                       </div>
                     </motion.div>
                   </div>
-                )}
-                </div>
-              </ScrollArea>
+                </ScrollArea>
+              )}
             </FileDropZone>
           </div>
         }

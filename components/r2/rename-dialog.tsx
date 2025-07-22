@@ -69,7 +69,16 @@ export function RenameDialog({
     
     try {
       // Use the sanitized name if available
-      const finalName = validation.normalizedPath?.split('/').pop() || newName;
+      // Remove trailing slash before getting the name
+      const normalizedPath = validation.normalizedPath?.replace(/\/$/, '') || newName;
+      const finalName = normalizedPath.split('/').pop() || newName;
+      
+      // Ensure the name is not empty
+      if (!finalName.trim()) {
+        toast.error('Name cannot be empty');
+        setRenaming(false);
+        return;
+      }
       
       // Build new key
       const pathParts = object.key.split('/');

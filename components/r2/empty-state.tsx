@@ -138,7 +138,7 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, ...springPresets.smooth }}
-        className="space-y-grid-3 max-w-sm"
+        className="mt-3 max-w-sm"
       >
         <h3 className={cn('text-foreground', typography.h2())}>
           {config.title}
@@ -154,7 +154,7 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, ...springPresets.bouncy }}
-          className="mt-grid-6"
+          className="mt-6"
         >
           <Button
             onClick={onAction}

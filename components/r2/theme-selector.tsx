@@ -157,16 +157,17 @@ export const ThemeSelector = React.memo(() => {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
         <Input
           className={cn(
-            "pl-9 bg-muted/50 border-muted focus:bg-background",
+            "bg-muted/50 border-muted focus:bg-background",
             typography.body()
           )}
           placeholder="Search themes..."
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ paddingLeft: '30px' }}
         />
       </div>
 

@@ -6,20 +6,17 @@ import {
   Palette, 
   Eye, 
   MousePointer, 
-  Cog, 
   RotateCcw, 
   Search,
   ChevronRight,
   Sparkles,
-  HelpCircle,
   ChevronDown,
-  Settings2
+  Settings2,
+  Check
 } from 'lucide-react';
 import { 
   useUIStateStore,
-  type UIDensity,
-  type DateFormat,
-  type SizeFormat
+  type UIDensity
 } from '@/lib/stores/ui-state-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,8 +24,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { useTypography } from '@/lib/hooks/use-typography';
@@ -40,24 +35,19 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { densityConfig, type UIDensityConfig } from '@/lib/spacing';
 import { springPresets } from '@/lib/animations';
 import { ThemeSelector } from './theme-selector';
-import { useThemeStore } from '@/lib/stores/theme-store';
 
-type SettingsSection = 'theme' | 'appearance' | 'file-display' | 'behavior' | 'advanced';
+type SettingsSection = 'theme' | 'appearance' | 'file-display' | 'behavior';
 
 const sectionIcons: Record<SettingsSection, React.ReactNode> = {
   theme: <Palette className="h-4 w-4" />,
   appearance: <Settings2 className="h-4 w-4" />,
   'file-display': <Eye className="h-4 w-4" />,
   behavior: <MousePointer className="h-4 w-4" />,
-  advanced: <Cog className="h-4 w-4" />,
 };
 
 const sectionLabels: Record<SettingsSection, string> = {
@@ -65,7 +55,6 @@ const sectionLabels: Record<SettingsSection, string> = {
   appearance: 'Appearance',
   'file-display': 'File Display',
   behavior: 'Behavior',
-  advanced: 'Advanced',
 };
 
 
@@ -76,7 +65,6 @@ export function SettingsDialog() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('theme');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['density']));
   const uiDensity = useUIStateStore(state => state.uiDensity);
   
@@ -245,12 +233,6 @@ export function SettingsDialog() {
                           density={density}
                         />
                       )}
-                      {activeSection === 'advanced' && (
-                        <AdvancedSettings 
-                          onSettingChange={() => setHasChanges(true)}
-                          density={density}
-                        />
-                      )}
                       </motion.div>
                     </AnimatePresence>
                   </LayoutGroup>
@@ -378,9 +360,6 @@ function CollapsibleSection({
 
 // Theme Settings - dedicated section for theme customization
 function ThemeSettings({
-  onSettingChange,
-  expandedSections,
-  toggleSection,
   density,
 }: { 
   onSettingChange: () => void;
@@ -388,26 +367,10 @@ function ThemeSettings({
   toggleSection: (section: string) => void;
   density: UIDensityConfig['default'];
 }) {
-  const typography = useTypography();
-  
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
       {/* Theme Selection */}
       <ThemeSelector />
-      
-      {/* Additional Theme Settings */}
-      <CollapsibleSection
-        title="Theme Options"
-        description="Fine-tune your theme preferences"
-        expanded={expandedSections.has('theme-options')}
-        onToggle={() => toggleSection('theme-options')}
-        density={density}
-        icon={<Settings2 className="h-5 w-5" />}
-      >
-        <div className="space-y-4">
-          <p className={cn(typography.body(), 'text-muted-foreground')}>Additional theme customization options coming soon.</p>
-        </div>
-      </CollapsibleSection>
     </div>
   );
 }
@@ -426,11 +389,7 @@ function AppearanceSettings({
 }) {
   const typography = useTypography();
   const uiDensity = useUIStateStore(state => state.uiDensity);
-  const showAnimations = useUIStateStore(state => state.showAnimations);
-  const reduceMotion = useUIStateStore(state => state.reduceMotion);
   const setUIDensity = useUIStateStore(state => state.setUIDensity);
-  const setShowAnimations = useUIStateStore(state => state.setShowAnimations);
-  const setReduceMotion = useUIStateStore(state => state.setReduceMotion);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
@@ -443,7 +402,7 @@ function AppearanceSettings({
         density={density}
         icon={<Settings2 className="h-5 w-5" />}
       >
-        <div className="space-y-4">
+        <div className="space-y-4 mt-4">
           <RadioGroup 
             value={uiDensity} 
             onValueChange={(value) => {
@@ -499,67 +458,11 @@ function AppearanceSettings({
         </div>
       </CollapsibleSection>
       
-      {/* Animations */}
-      <div className="space-y-4">
-        <motion.div
-          className="flex items-center justify-between p-5 rounded-lg border bg-background/50 hover:bg-muted/40 transition-colors"
-          whileHover={{ x: 2 }}
-        >
-          <div className="flex items-center gap-4">
-            <div className="p-2 rounded-lg bg-muted/50">
-              <Sparkles className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div className="flex-1">
-              <Label htmlFor="animations" className={cn('cursor-pointer', typography.label())}>
-                Enable Animations
-              </Label>
-              <p className={cn('mt-0.5', typography.caption())}>
-                Smooth transitions and visual feedback
-              </p>
-            </div>
-          </div>
-          <Switch
-            id="animations"
-            checked={showAnimations}
-            onCheckedChange={(checked) => {
-              setShowAnimations(checked);
-              onSettingChange();
-            }}
-          />
-        </motion.div>
-        
-        <motion.div
-          className="flex items-center justify-between p-5 rounded-lg border bg-background/50 hover:bg-muted/40 transition-colors"
-          whileHover={{ x: 2 }}
-        >
-          <div className="flex items-center gap-4">
-            <div className="p-2 rounded-lg bg-muted/50">
-              <HelpCircle className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div className="flex-1">
-              <Label htmlFor="reduce-motion" className={cn('cursor-pointer', typography.label())}>
-                Reduce Motion
-              </Label>
-              <p className={cn('mt-0.5', typography.caption())}>
-                Minimize animations for accessibility
-              </p>
-            </div>
-          </div>
-          <Switch
-            id="reduce-motion"
-            checked={reduceMotion}
-            onCheckedChange={(checked) => {
-              setReduceMotion(checked);
-              onSettingChange();
-            }}
-          />
-        </motion.div>
-      </div>
     </div>
   );
 }
 
-// File Display Settings remain similar but with enhanced spacing
+// File Display Settings - only functional settings
 function FileDisplaySettings({
   onSettingChange,
   density,
@@ -568,145 +471,39 @@ function FileDisplaySettings({
   density: UIDensityConfig['default'];
 }) {
   const typography = useTypography();
-  const showFileExtensions = useUIStateStore(state => state.showFileExtensions);
-  const dateFormat = useUIStateStore(state => state.dateFormat);
-  const sizeFormat = useUIStateStore(state => state.sizeFormat);
-  const groupFoldersFirst = useUIStateStore(state => state.groupFoldersFirst);
+  const showHiddenFiles = useUIStateStore(state => state.showHiddenFiles);
   const showThumbnails = useUIStateStore(state => state.showThumbnails);
   const thumbnailSize = useUIStateStore(state => state.thumbnailSize);
-  const setShowFileExtensions = useUIStateStore(state => state.setShowFileExtensions);
-  const setDateFormat = useUIStateStore(state => state.setDateFormat);
-  const setSizeFormat = useUIStateStore(state => state.setSizeFormat);
-  const setGroupFoldersFirst = useUIStateStore(state => state.setGroupFoldersFirst);
+  const setShowHiddenFiles = useUIStateStore(state => state.setShowHiddenFiles);
   const setShowThumbnails = useUIStateStore(state => state.setShowThumbnails);
   const setThumbnailSize = useUIStateStore(state => state.setThumbnailSize);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
-      {/* Toggle Settings */}
+      {/* Working Toggle Settings */}
       <div className="space-y-2">
         <motion.div
           className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
           whileHover={{ x: 2 }}
         >
           <div>
-            <Label htmlFor="file-extensions" className={cn('cursor-pointer', typography.label())}>
-              Show File Extensions
+            <Label htmlFor="hidden-files" className={cn('cursor-pointer', typography.label())}>
+              Show Hidden Files
             </Label>
             <p className={cn('mt-0.5', typography.caption())}>
-              Display file extensions like .txt, .pdf
+              Display files and folders starting with a dot
             </p>
           </div>
           <Switch
-            id="file-extensions"
-            checked={showFileExtensions}
+            id="hidden-files"
+            checked={showHiddenFiles}
             onCheckedChange={(checked) => {
-              setShowFileExtensions(checked);
+              setShowHiddenFiles(checked);
               onSettingChange();
             }}
           />
         </motion.div>
 
-        <motion.div
-          className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
-          whileHover={{ x: 2 }}
-        >
-          <div>
-            <Label htmlFor="group-folders" className={cn('cursor-pointer', typography.label())}>
-              Group Folders First
-            </Label>
-            <p className={cn('mt-0.5', typography.caption())}>
-              Show all folders before files
-            </p>
-          </div>
-          <Switch
-            id="group-folders"
-            checked={groupFoldersFirst}
-            onCheckedChange={(checked) => {
-              setGroupFoldersFirst(checked);
-              onSettingChange();
-            }}
-          />
-        </motion.div>
-      </div>
-
-      <Separator />
-
-      {/* Format Settings */}
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="date-format" className={cn('mb-2 block', typography.label())}>
-            Date Format
-          </Label>
-          <Select value={dateFormat} onValueChange={(value) => {
-            setDateFormat(value as DateFormat);
-            onSettingChange();
-          }}>
-            <SelectTrigger id="date-format" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="relative">
-                <div className="flex items-center gap-2">
-                  <span>Relative</span>
-                  <span className={typography.caption()}>(2 hours ago)</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="short">
-                <div className="flex items-center gap-2">
-                  <span>Short</span>
-                  <span className={typography.caption()}>(Jan 15, 2025)</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="long">
-                <div className="flex items-center gap-2">
-                  <span>Long</span>
-                  <span className={typography.caption()}>(January 15, 2025 at 3:30 PM)</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="size-format" className={cn('mb-2 block', typography.label())}>
-            File Size Format
-          </Label>
-          <Select value={sizeFormat} onValueChange={(value) => {
-            setSizeFormat(value as SizeFormat);
-            onSettingChange();
-          }}>
-            <SelectTrigger id="size-format" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">
-                <div className="flex items-center gap-2">
-                  <span>Auto</span>
-                  <span className={typography.caption()}>(KB, MB, GB)</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="bytes">
-                <div className="flex items-center gap-2">
-                  <span>Bytes</span>
-                  <span className={typography.caption()}>(1,234,567)</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="decimal">
-                <div className="flex items-center gap-2">
-                  <span>Decimal</span>
-                  <span className={typography.caption()}>(1.23 MB)</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Thumbnail Settings */}
-      <div className="space-y-4">
         <motion.div
           className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
           whileHover={{ x: 2 }}
@@ -728,450 +525,101 @@ function FileDisplaySettings({
             }}
           />
         </motion.div>
-
-        <AnimatePresence>
-          {showThumbnails && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={springPresets.smooth}
-              className="space-y-3 px-4"
-            >
-              <div className="flex items-center justify-between">
-                <Label htmlFor="thumbnail-size" className={typography.label()}>
-                  Thumbnail Size
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={40}
-                    max={160}
-                    step={20}
-                    value={thumbnailSize}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 40 && value <= 160) {
-                        setThumbnailSize(value);
-                        onSettingChange();
-                      }
-                    }}
-                    className="w-20 h-8 text-center"
-                  />
-                  <span className={typography.caption()}>px</span>
-                </div>
-              </div>
-              <Slider
-                id="thumbnail-size"
-                min={40}
-                max={160}
-                step={20}
-                value={[thumbnailSize]}
-                onValueChange={([value]) => {
-                  setThumbnailSize(value);
-                  onSettingChange();
-                }}
-                className="w-full"
-              />
-              
-              {/* Preview */}
-              <div className="flex items-center gap-2 mt-3">
-                <div className="flex gap-2">
-                  {[1, 2, 3].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="bg-muted rounded-md"
-                      style={{
-                        width: `${thumbnailSize / 2}px`,
-                        height: `${thumbnailSize / 2}px`,
-                      }}
-                      animate={{
-                        scale: [1, 0.95, 1],
-                      }}
-                      transition={{ delay: i * 0.1, duration: 0.5 }}
-                    />
-                  ))}
-                </div>
-                <span className={typography.caption()}>Preview</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-// Behavior Settings with enhanced interactions
-function BehaviorSettings({
-  onSettingChange,
-  density,
-}: { 
-  onSettingChange: () => void;
-  density: UIDensityConfig['default'];
-}) {
-  const typography = useTypography();
-  const confirmDelete = useUIStateStore(state => state.confirmDelete);
-  const confirmBulkOperations = useUIStateStore(state => state.confirmBulkOperations);
-  const doubleClickAction = useUIStateStore(state => state.doubleClickAction);
-  const autoRefreshInterval = useUIStateStore(state => state.autoRefreshInterval);
-  const searchIncludeContent = useUIStateStore(state => state.searchIncludeContent);
-  const setConfirmDelete = useUIStateStore(state => state.setConfirmDelete);
-  const setConfirmBulkOperations = useUIStateStore(state => state.setConfirmBulkOperations);
-  const setDoubleClickAction = useUIStateStore(state => state.setDoubleClickAction);
-  const setAutoRefreshInterval = useUIStateStore(state => state.setAutoRefreshInterval);
-  const setSearchIncludeContent = useUIStateStore(state => state.setSearchIncludeContent);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
-      {/* Confirmation Settings */}
-      <div className="space-y-2">
-        <h3 className={cn('mb-3', typography.h3())}>Confirmations</h3>
-        
-        <motion.div
-          className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
-          whileHover={{ x: 2 }}
-        >
-          <div>
-            <Label htmlFor="confirm-delete" className={cn('cursor-pointer', typography.label())}>
-              Confirm Before Delete
-            </Label>
-            <p className={cn('mt-0.5', typography.caption())}>
-              Ask for confirmation when deleting files
-            </p>
-          </div>
-          <Switch
-            id="confirm-delete"
-            checked={confirmDelete}
-            onCheckedChange={(checked) => {
-              setConfirmDelete(checked);
-              onSettingChange();
-            }}
-          />
-        </motion.div>
-
-        <motion.div
-          className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
-          whileHover={{ x: 2 }}
-        >
-          <div>
-            <Label htmlFor="confirm-bulk" className={cn('cursor-pointer', typography.label())}>
-              Confirm Bulk Operations
-            </Label>
-            <p className={cn('mt-0.5', typography.caption())}>
-              Ask when performing actions on multiple files
-            </p>
-          </div>
-          <Switch
-            id="confirm-bulk"
-            checked={confirmBulkOperations}
-            onCheckedChange={(checked) => {
-              setConfirmBulkOperations(checked);
-              onSettingChange();
-            }}
-          />
-        </motion.div>
       </div>
 
-      <Separator />
-
-      {/* Mouse Actions */}
-      <div>
-        <h3 className={cn('mb-3', typography.h3())}>Mouse Actions</h3>
-        <div className="space-y-2">
-          <Label className={typography.label()}>Double Click Action</Label>
-          <RadioGroup 
-            value={doubleClickAction} 
-            onValueChange={(value) => {
-              setDoubleClickAction(value as 'open' | 'preview');
-              onSettingChange();
-            }}
-            className="space-y-2"
+      <AnimatePresence>
+        {showThumbnails && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={springPresets.smooth}
+            className="space-y-3 px-4"
           >
-            <motion.label
-              htmlFor="open"
-              className={cn(
-                "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
-                doubleClickAction === 'open' 
-                  ? "border-accent bg-accent/10" 
-                  : "border-muted hover:border-muted-foreground/50"
-              )}
-              whileHover={{ x: 2 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              <RadioGroupItem value="open" id="open" />
-              <span>Open/Navigate to folder</span>
-            </motion.label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="thumbnail-size" className={typography.label()}>
+                Thumbnail Size
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={40}
+                  max={160}
+                  step={20}
+                  value={thumbnailSize}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value >= 40 && value <= 160) {
+                      setThumbnailSize(value);
+                      onSettingChange();
+                    }
+                  }}
+                  className="w-20 h-8 text-center"
+                />
+                <span className={typography.caption()}>px</span>
+              </div>
+            </div>
+            <Slider
+              id="thumbnail-size"
+              min={40}
+              max={160}
+              step={20}
+              value={[thumbnailSize]}
+              onValueChange={([value]) => {
+                setThumbnailSize(value);
+                onSettingChange();
+              }}
+              className="w-full"
+            />
             
-            <motion.label
-              htmlFor="preview"
-              className={cn(
-                "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
-                doubleClickAction === 'preview' 
-                  ? "border-accent bg-accent/10" 
-                  : "border-muted hover:border-muted-foreground/50"
-              )}
-              whileHover={{ x: 2 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              <RadioGroupItem value="preview" id="preview" />
-              <span>Preview file</span>
-            </motion.label>
-          </RadioGroup>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Auto Refresh */}
-      <div>
-        <Label htmlFor="auto-refresh" className={cn('mb-2 block', typography.label())}>
-          Auto Refresh Interval
-        </Label>
-        <Select value={String(autoRefreshInterval)} onValueChange={(value) => {
-          setAutoRefreshInterval(Number(value));
-          onSettingChange();
-        }}>
-          <SelectTrigger id="auto-refresh" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">Disabled</SelectItem>
-            <SelectItem value="10">10 seconds</SelectItem>
-            <SelectItem value="30">30 seconds</SelectItem>
-            <SelectItem value="60">1 minute</SelectItem>
-            <SelectItem value="300">5 minutes</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Separator />
-
-      {/* Search Settings */}
-      <motion.div
-        className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
-        whileHover={{ x: 2 }}
-      >
-        <div>
-          <Label htmlFor="search-content" className={cn('cursor-pointer', typography.label())}>
-            Search File Contents
-          </Label>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Include file contents in search (slower)
-          </p>
-        </div>
-        <Switch
-          id="search-content"
-          checked={searchIncludeContent}
-          onCheckedChange={(checked) => {
-            setSearchIncludeContent(checked);
-            onSettingChange();
-          }}
-        />
-      </motion.div>
+            {/* Preview */}
+            <div className="flex items-center gap-2 mt-3">
+              <div className="flex gap-2">
+                {[1, 2, 3].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="bg-muted rounded-md"
+                    style={{
+                      width: `${thumbnailSize / 2}px`,
+                      height: `${thumbnailSize / 2}px`,
+                    }}
+                    animate={{
+                      scale: [1, 0.95, 1],
+                    }}
+                    transition={{ delay: i * 0.1, duration: 0.5 }}
+                  />
+                ))}
+              </div>
+              <span className={typography.caption()}>Preview</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// Advanced Settings with input enhancements
-function AdvancedSettings({
-  onSettingChange,
+// Behavior Settings - placeholder until features are implemented
+function BehaviorSettings({
   density,
 }: { 
   onSettingChange: () => void;
   density: UIDensityConfig['default'];
 }) {
   const typography = useTypography();
-  const maxConcurrentUploads = useUIStateStore(state => state.maxConcurrentUploads);
-  const uploadChunkSize = useUIStateStore(state => state.uploadChunkSize);
-  const enableServiceWorker = useUIStateStore(state => state.enableServiceWorker);
-  const cacheEnabled = useUIStateStore(state => state.cacheEnabled);
-  const cacheDuration = useUIStateStore(state => state.cacheDuration);
-  const setMaxConcurrentUploads = useUIStateStore(state => state.setMaxConcurrentUploads);
-  const setUploadChunkSize = useUIStateStore(state => state.setUploadChunkSize);
-  const setEnableServiceWorker = useUIStateStore(state => state.setEnableServiceWorker);
-  const setCacheEnabled = useUIStateStore(state => state.setCacheEnabled);
-  const setCacheDuration = useUIStateStore(state => state.setCacheDuration);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: density.spacing.xl }}>
-      {/* Upload Settings */}
-      <div className="space-y-4">
-        <h3 className={cn('mb-3', typography.h3())}>Upload Settings</h3>
-        
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="concurrent-uploads" className={typography.label()}>
-              Max Concurrent Uploads
-            </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={10}
-                value={maxConcurrentUploads}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (!isNaN(value) && value >= 1 && value <= 10) {
-                    setMaxConcurrentUploads(value);
-                    onSettingChange();
-                  }
-                }}
-                className="w-16 h-8 text-center"
-              />
-            </div>
-          </div>
-          <Slider
-            id="concurrent-uploads"
-            min={1}
-            max={10}
-            step={1}
-            value={[maxConcurrentUploads]}
-            onValueChange={([value]) => {
-              setMaxConcurrentUploads(value);
-              onSettingChange();
-            }}
-            className="w-full"
-          />
+      <div className="text-center py-12">
+        <div className="p-4 bg-muted/30 rounded-lg inline-block mb-4">
+          <MousePointer className="h-12 w-12 text-muted-foreground" />
         </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="chunk-size" className={typography.label()}>
-              Upload Chunk Size
-            </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={uploadChunkSize}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (!isNaN(value) && value >= 1 && value <= 100) {
-                    setUploadChunkSize(value);
-                    onSettingChange();
-                  }
-                }}
-                className="w-16 h-8 text-center"
-              />
-              <span className={typography.caption()}>MB</span>
-            </div>
-          </div>
-          <Slider
-            id="chunk-size"
-            min={1}
-            max={100}
-            step={1}
-            value={[uploadChunkSize]}
-            onValueChange={([value]) => {
-              setUploadChunkSize(value);
-              onSettingChange();
-            }}
-            className="w-full"
-          />
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Service Worker */}
-      <motion.div
-        className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
-        whileHover={{ x: 2 }}
-      >
-        <div>
-          <Label htmlFor="service-worker" className={cn('cursor-pointer', typography.label())}>
-            Enable Service Worker
-          </Label>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Background uploads and offline support
-          </p>
-        </div>
-        <Switch
-          id="service-worker"
-          checked={enableServiceWorker}
-          onCheckedChange={(checked) => {
-            setEnableServiceWorker(checked);
-            onSettingChange();
-          }}
-        />
-      </motion.div>
-
-      <Separator />
-
-      {/* Cache Settings */}
-      <div className="space-y-4">
-        <motion.div
-          className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/40 transition-colors"
-          whileHover={{ x: 2 }}
-        >
-          <div>
-            <Label htmlFor="cache-enabled" className={cn('cursor-pointer', typography.label())}>
-              Enable Cache
-            </Label>
-            <p className={cn('mt-0.5', typography.caption())}>
-              Cache file listings for better performance
-            </p>
-          </div>
-          <Switch
-            id="cache-enabled"
-            checked={cacheEnabled}
-            onCheckedChange={(checked) => {
-              setCacheEnabled(checked);
-              onSettingChange();
-            }}
-          />
-        </motion.div>
-
-        <AnimatePresence>
-          {cacheEnabled && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={springPresets.smooth}
-              className="space-y-3 px-4"
-            >
-              <div className="flex items-center justify-between">
-                <Label htmlFor="cache-duration" className={typography.label()}>
-                  Cache Duration
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={5}
-                    max={60}
-                    step={5}
-                    value={cacheDuration}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 5 && value <= 60) {
-                        setCacheDuration(value);
-                        onSettingChange();
-                      }
-                    }}
-                    className="w-16 h-8 text-center"
-                  />
-                  <span className={typography.caption()}>minutes</span>
-                </div>
-              </div>
-              <Slider
-                id="cache-duration"
-                min={5}
-                max={60}
-                step={5}
-                value={[cacheDuration]}
-                onValueChange={([value]) => {
-                  setCacheDuration(value);
-                  onSettingChange();
-                }}
-                className="w-full"
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <h3 className={cn('mb-2', typography.h3())}>Behavior Settings</h3>
+        <p className={cn(typography.body(), 'text-muted-foreground')}>
+          Behavior customization options will be available in a future update.
+        </p>
       </div>
     </div>
   );
 }
+
