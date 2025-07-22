@@ -161,7 +161,16 @@ Docker services:
 
 ## License
 
-MIT License - see LICENSE file for details
+This software is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0) with additional anti-white-labeling terms.
+
+### Key License Terms:
+- ✅ **Free to use** for any purpose
+- ✅ **Free to modify** and distribute
+- ✅ **Source code must be provided** when distributing
+- ❌ **Cannot be white-labeled** or rebranded without permission
+- ❌ **Original branding must be retained** in all distributions
+
+See the [LICENSE](LICENSE) file for full details.
 
 ## Support
 

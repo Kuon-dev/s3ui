@@ -1,0 +1,37 @@
+GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
+
+Copyright (C) 2025 S3UI Contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+ADDITIONAL TERMS - Anti White-Labeling Clause:
+
+1. Any distribution or deployment of this software must retain all original 
+   branding, including but not limited to:
+   - The "S3UI" name
+   - All copyright notices
+   - Attribution to original authors
+   - Links to the original repository
+
+2. Modified versions must clearly indicate that they are modified versions
+   and must not use the "S3UI" name or branding in a way that could cause
+   confusion with the original software.
+
+3. The software may not be rebranded or white-labeled for commercial or
+   non-commercial purposes without explicit written permission from the
+   copyright holders.
+
+For the full AGPL-3.0 license text, visit:
+https://www.gnu.org/licenses/agpl-3.0.en.html
