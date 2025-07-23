@@ -1,10 +1,8 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'motion/react';
 import { Upload, FolderOpen, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { springPresets } from '@/lib/animations';
 import { useTypography } from '@/lib/hooks/use-typography';
 import { cn } from '@/lib/utils';
 import { useTranslations } from '@/hooks/use-translations';
@@ -52,44 +50,19 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
   const Icon = config.icon;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springPresets.smooth}
-      className="flex flex-col items-center justify-center h-full text-center px-grid-6"
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center h-full text-center px-grid-6",
+        "animate-in fade-in-50 slide-in-from-bottom-4 duration-300"
+      )}
     >
       {/* Animated Icon Container */}
-      <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        transition={{ delay: 0.1, ...springPresets.bouncy }}
-        className="relative mb-grid-6"
-      >
+      <div className="relative mb-grid-6 animate-in zoom-in-50 duration-500 delay-100">
         {/* Background circles */}
-        <motion.div
-          animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [0.1, 0.05, 0.1],
-          }}
-          transition={{ 
-            duration: 3,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="absolute inset-0 w-32 h-32 rounded-full bg-primary"
-        />
-        <motion.div
-          animate={{ 
-            scale: [1, 1.2, 1],
-            opacity: [0.05, 0.02, 0.05],
-          }}
-          transition={{ 
-            duration: 3,
-            delay: 0.5,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="absolute inset-0 w-32 h-32 rounded-full bg-primary"
+        <div className="absolute inset-0 w-32 h-32 rounded-full bg-primary opacity-10 animate-pulse-subtle" />
+        <div 
+          className="absolute inset-0 w-32 h-32 rounded-full bg-primary opacity-5 animate-pulse-subtle"
+          style={{ animationDelay: '0.5s', animationDuration: '3.5s' }}
         />
         
         {/* Main icon */}
@@ -99,49 +72,26 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
           {/* Sparkles for empty folder */}
           {type === 'empty-folder' && (
             <>
-              <motion.div
-                animate={{ 
-                  scale: [0, 1, 0],
-                  opacity: [0, 1, 0],
-                  rotate: [0, 180],
-                }}
-                transition={{ 
-                  duration: 2,
-                  delay: 0,
-                  repeat: Infinity,
-                  repeatDelay: 3,
-                }}
-                className="absolute -top-2 -right-2"
-              >
+              <div className="absolute -top-2 -right-2 animate-sparkle">
                 <Sparkles className="w-6 h-6 text-primary" />
-              </motion.div>
-              <motion.div
-                animate={{ 
-                  scale: [0, 1, 0],
-                  opacity: [0, 1, 0],
-                  rotate: [0, -180],
-                }}
-                transition={{ 
-                  duration: 2,
-                  delay: 1,
-                  repeat: Infinity,
-                  repeatDelay: 3,
-                }}
-                className="absolute -bottom-2 -left-2"
+              </div>
+              <div 
+                className="absolute -bottom-2 -left-2 animate-sparkle"
+                style={{ animationDelay: '1s' }}
               >
                 <Sparkles className="w-5 h-5 text-primary/70" />
-              </motion.div>
+              </div>
             </>
           )}
         </div>
-      </motion.div>
+      </div>
 
       {/* Text content */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, ...springPresets.smooth }}
-        className="mt-3 max-w-sm"
+      <div 
+        className={cn(
+          "mt-3 max-w-sm",
+          "animate-in fade-in slide-in-from-bottom-2 duration-300 delay-200"
+        )}
       >
         <h3 className={cn('text-foreground', typography.h2())}>
           {config.title}
@@ -149,15 +99,15 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
         <p className={typography.caption()}>
           {config.description}
         </p>
-      </motion.div>
+      </div>
 
       {/* Action button */}
       {config.showAction && onAction && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, ...springPresets.bouncy }}
-          className="mt-6"
+        <div 
+          className={cn(
+            "mt-6",
+            "animate-in fade-in zoom-in-95 duration-300 delay-300"
+          )}
         >
           <Button
             onClick={onAction}
@@ -167,36 +117,14 @@ export function EmptyState({ type, searchQuery, onAction }: EmptyStateProps) {
             {config.actionIcon && <config.actionIcon className="h-4 w-4 mr-2" />}
             {config.actionLabel}
           </Button>
-        </motion.div>
+        </div>
       )}
 
       {/* Decorative elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{ 
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-          }}
-          transition={{ 
-            duration: 20,
-            repeat: Infinity,
-            ease: 'linear',
-          }}
-          className="absolute top-1/4 -left-16 w-32 h-32 rounded-full bg-primary/5 blur-3xl"
-        />
-        <motion.div
-          animate={{ 
-            x: [0, -100, 0],
-            y: [0, 50, 0],
-          }}
-          transition={{ 
-            duration: 15,
-            repeat: Infinity,
-            ease: 'linear',
-          }}
-          className="absolute bottom-1/4 -right-16 w-40 h-40 rounded-full bg-primary/5 blur-3xl"
-        />
+        <div className="absolute top-1/4 -left-16 w-32 h-32 rounded-full bg-primary/5 blur-3xl animate-float-left" />
+        <div className="absolute bottom-1/4 -right-16 w-40 h-40 rounded-full bg-primary/5 blur-3xl animate-float-right" />
       </div>
-    </motion.div>
+    </div>
   );
 }

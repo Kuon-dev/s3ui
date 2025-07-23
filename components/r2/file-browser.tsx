@@ -1059,14 +1059,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                             {sortBy === 'date' && t('fileBrowser.date')}
                             {sortBy === 'type' && t('fileBrowser.type')}
                           </span>
-                          <motion.div
+                          <div
                             key={sortOrder}
-                            initial={{ rotate: sortOrder === 'asc' ? 180 : 0 }}
-                            animate={{ rotate: sortOrder === 'asc' ? 0 : 180 }}
-                            transition={springPresets.snappy}
+                            className="transition-transform duration-200"
+                            style={{ transform: `rotate(${sortOrder === 'asc' ? '0deg' : '180deg'})` }}
                           >
                             <SortAsc className="h-3 w-3 text-foreground" />
-                          </motion.div>
+                          </div>
                         </Button>
                       </Tooltip>
                     </DropdownMenuTrigger>
@@ -1078,13 +1077,9 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         <Type className="h-3 w-3 mr-1" />
                         {t('fileBrowser.sortByName')}
                         {sortBy === 'name' && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="ml-auto"
-                          >
+                          <div className="ml-auto scale-100 animate-in zoom-in-50 duration-150">
                             ✓
-                          </motion.div>
+                          </div>
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuItem 
@@ -1094,13 +1089,9 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         <HardDrive className="h-3 w-3 mr-1" />
                         {t('fileBrowser.sortBySize')}
                         {sortBy === 'size' && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="ml-auto"
-                          >
+                          <div className="ml-auto scale-100 animate-in zoom-in-50 duration-150">
                             ✓
-                          </motion.div>
+                          </div>
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuItem 
@@ -1110,13 +1101,9 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         <Calendar className="h-3 w-3 mr-1" />
                         {t('fileBrowser.sortByDate')}
                         {sortBy === 'date' && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="ml-auto"
-                          >
+                          <div className="ml-auto scale-100 animate-in zoom-in-50 duration-150">
                             ✓
-                          </motion.div>
+                          </div>
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuItem 
@@ -1126,13 +1113,9 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                         <FileType className="h-3 w-3 mr-1" />
                         {t('fileBrowser.sortByType')}
                         {sortBy === 'type' && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="ml-auto"
-                          >
+                          <div className="ml-auto scale-100 animate-in zoom-in-50 duration-150">
                             ✓
-                          </motion.div>
+                          </div>
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
@@ -1214,28 +1197,21 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                     </>
                   )}
                   
-                  <AnimatePresence>
-                    {hasClipboardItems() && canPaste(currentPath) && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={springPresets.snappy}
-                      >
-                        <Tooltip content={t('fileBrowser.pasteTooltip', { operation: clipboardOperation || 'paste', count: clipboardItems.length })} shortcut="⌘V">
-                          <Button 
-                            variant="outline" 
-                            onClick={() => handlePaste()}
-                            className="active-scale"
-                            aria-label={t('fileBrowser.pasteItems', { count: clipboardItems.length })}
-                          >
-                            <ClipboardPaste className="h-3 w-3 mr-1" />
-                            {t('fileBrowser.paste')}
-                          </Button>
-                        </Tooltip>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {hasClipboardItems() && canPaste(currentPath) && (
+                    <div className="animate-in fade-in-0 zoom-in-90 duration-200">
+                      <Tooltip content={t('fileBrowser.pasteTooltip', { operation: clipboardOperation || 'paste', count: clipboardItems.length })} shortcut="⌘V">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handlePaste()}
+                          className="active-scale"
+                          aria-label={t('fileBrowser.pasteItems', { count: clipboardItems.length })}
+                        >
+                          <ClipboardPaste className="h-3 w-3 mr-1" />
+                          {t('fileBrowser.paste')}
+                        </Button>
+                      </Tooltip>
+                    </div>
+                  )}
                   
                   {/* Settings Button */}
                   <Tooltip content={t('fileBrowser.openSettingsTooltip')} shortcut="⌘,">
@@ -1317,14 +1293,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                           >
                             {t('fileBrowser.name')}
                             {sortBy === 'name' && (
-                              <motion.div
+                              <div
                                 key={sortOrder}
-                                initial={{ rotate: 0 }}
-                                animate={{ rotate: sortOrder === 'asc' ? 0 : 180 }}
-                                transition={springPresets.snappy}
+                                className="transition-transform duration-200"
+                                style={{ transform: `rotate(${sortOrder === 'asc' ? '0deg' : '180deg'})` }}
                               >
                                 <SortAsc className="h-2.5 w-2.5" />
-                              </motion.div>
+                              </div>
                             )}
                           </button>
                         </div>
@@ -1342,14 +1317,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                           >
                             {t('fileBrowser.type')}
                             {sortBy === 'type' && (
-                              <motion.div
+                              <div
                                 key={sortOrder}
-                                initial={{ rotate: 0 }}
-                                animate={{ rotate: sortOrder === 'asc' ? 0 : 180 }}
-                                transition={springPresets.snappy}
+                                className="transition-transform duration-200"
+                                style={{ transform: `rotate(${sortOrder === 'asc' ? '0deg' : '180deg'})` }}
                               >
                                 <SortAsc className="h-2.5 w-2.5" />
-                              </motion.div>
+                              </div>
                             )}
                           </button>
                           <button
@@ -1365,14 +1339,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                           >
                             {t('fileBrowser.size')}
                             {sortBy === 'size' && (
-                              <motion.div
+                              <div
                                 key={sortOrder}
-                                initial={{ rotate: 0 }}
-                                animate={{ rotate: sortOrder === 'asc' ? 0 : 180 }}
-                                transition={springPresets.snappy}
+                                className="transition-transform duration-200"
+                                style={{ transform: `rotate(${sortOrder === 'asc' ? '0deg' : '180deg'})` }}
                               >
                                 <SortAsc className="h-2.5 w-2.5" />
-                              </motion.div>
+                              </div>
                             )}
                           </button>
                           <button
@@ -1388,14 +1361,13 @@ export function FileBrowser({ initialPath = '' }: FileBrowserProps) {
                           >
                             {t('fileBrowser.modified')}
                             {sortBy === 'date' && (
-                              <motion.div
+                              <div
                                 key={sortOrder}
-                                initial={{ rotate: 0 }}
-                                animate={{ rotate: sortOrder === 'asc' ? 0 : 180 }}
-                                transition={springPresets.snappy}
+                                className="transition-transform duration-200"
+                                style={{ transform: `rotate(${sortOrder === 'asc' ? '0deg' : '180deg'})` }}
                               >
                                 <SortAsc className="h-2.5 w-2.5" />
-                              </motion.div>
+                              </div>
                             )}
                           </button>
                         </div>

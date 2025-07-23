@@ -73,14 +73,13 @@ export function FileGridItem({
   const config = densityConfig[uiDensity];
   
   return (
-    <motion.div
-      className={cn("relative group", className)}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={springPresets.gentle}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
+    <div
+      className={cn(
+        "relative group animate-in fade-in-50 zoom-in-95 duration-200",
+        className
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onContextMenu={onContextMenu}
     >
       <CardEnhanced
@@ -97,14 +96,13 @@ export function FileGridItem({
         onDoubleClick={onDoubleClick}
       >
         {/* Selection Checkbox */}
-        <motion.div
-          className="absolute top-2 left-2 z-10"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: isHovered || isSelected ? 1 : 0,
-            scale: isHovered || isSelected ? 1 : 0.8,
-          }}
-          transition={springPresets.gentle}
+        <div
+          className={cn(
+            "absolute top-2 left-2 z-10 transition-all duration-200",
+            isHovered || isSelected
+              ? "opacity-100 scale-100"
+              : "opacity-0 scale-75 pointer-events-none"
+          )}
         >
           <Checkbox
             checked={isSelected}
@@ -112,17 +110,16 @@ export function FileGridItem({
             onClick={(e) => e.stopPropagation()}
             className="bg-background/80 backdrop-blur-sm"
           />
-        </motion.div>
+        </div>
         
         {/* Quick Actions */}
-        <motion.div
-          className="absolute top-2 right-2 z-10"
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ 
-            opacity: showActions || isHovered ? 1 : 0,
-            x: showActions || isHovered ? 0 : 10,
-          }}
-          transition={springPresets.gentle}
+        <div
+          className={cn(
+            "absolute top-2 right-2 z-10 transition-all duration-200",
+            showActions || isHovered
+              ? "opacity-100 translate-x-0"
+              : "opacity-0 translate-x-2 pointer-events-none"
+          )}
         >
           <div className="flex items-center gap-1 bg-background/80 backdrop-blur-sm rounded-lg p-1">
             {!object.isFolder && (
@@ -163,19 +160,18 @@ export function FileGridItem({
               <MoreHorizontal className="h-3.5 w-3.5" />
             </Button>
           </div>
-        </motion.div>
+        </div>
         
         {/* Content */}
         <div className={cn("flex flex-col items-center text-center", config.gap)}>
           {/* Icon/Thumbnail */}
-          <motion.div
+          <div
             className={cn(
               "relative flex items-center justify-center rounded-lg",
+              "transition-transform duration-200 hover:scale-105",
               config.iconSize,
               object.isFolder ? "bg-primary/10" : "bg-muted/50"
             )}
-            whileHover={{ scale: 1.05 }}
-            transition={springPresets.bouncy}
           >
             {isImage ? (
               <img
@@ -205,7 +201,7 @@ export function FileGridItem({
                 {filename.split('.').pop()?.toUpperCase() || ''}
               </Badge>
             )}
-          </motion.div>
+          </div>
           
           {/* Name */}
           <div className="w-full">
@@ -232,6 +228,6 @@ export function FileGridItem({
           </div>
         </div>
       </CardEnhanced>
-    </motion.div>
+    </div>
   );
 }

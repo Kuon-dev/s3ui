@@ -215,23 +215,12 @@ export function UploadDialog({
       case 'pending':
         return <Clock className="h-4 w-4 text-muted-foreground" />;
       case 'uploading':
-        return (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          >
-            <Loader2 className="h-4 w-4 text-primary" />
-          </motion.div>
-        );
+        return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       case 'completed':
         return (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={springPresets.bouncy}
-          >
+          <div className="animate-in zoom-in-50 duration-200">
             <CheckCircle2 className="h-4 w-4 text-success" />
-          </motion.div>
+          </div>
         );
       case 'failed':
         return <AlertCircle className="h-4 w-4 text-destructive" />;
@@ -361,17 +350,13 @@ export function UploadDialog({
                 
                 {/* Total Progress */}
                 {uploading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-grid-3 bg-primary/5 rounded-lg border border-primary/20"
-                  >
+                  <div className="p-grid-3 bg-primary/5 rounded-lg border border-primary/20 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">{t('uploadDialog.totalProgress')}</span>
                       <span className="text-sm text-muted-foreground">{t('uploadDialog.percentComplete', { percent: totalProgress })}</span>
                     </div>
                     <Progress value={totalProgress} className="h-2" />
-                  </motion.div>
+                  </div>
                 )}
                 
                 <div className="max-h-64 overflow-y-auto my-4 space-y-2">
@@ -381,21 +366,18 @@ export function UploadDialog({
                       const fileType = getFileType(fileItem.file.name);
                       
                       return (
-                        <motion.div
+                        <div
                           key={fileItem.id}
-                          layout
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 20 }}
-                          transition={{ delay: index * 0.05, ...springPresets.gentle }}
                           className={cn(
                             "flex items-center gap-grid-3 p-grid-3 rounded-lg border",
                             "transition-all duration-200",
+                            "animate-in fade-in slide-in-from-left-4 duration-200",
                             fileItem.status === 'completed' && "bg-success/5 border-success/20",
                             fileItem.status === 'failed' && "bg-destructive/5 border-destructive/20",
                             fileItem.status === 'uploading' && "bg-primary/5 border-primary/20",
                             fileItem.status === 'pending' && "bg-card border-border/50"
                           )}
+                          style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <Icon className={`h-5 w-5 flex-shrink-0 file-type-${fileType.category}`} />
                           
@@ -431,7 +413,7 @@ export function UploadDialog({
                               </Button>
                             )}
                           </div>
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </AnimatePresence>

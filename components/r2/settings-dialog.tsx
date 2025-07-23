@@ -197,18 +197,17 @@ export function SettingsDialog() {
               
               <ScrollArea className="flex-1">
                 <div className="px-8 py-6">
-                  <LayoutGroup>
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={activeSection}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={springPresets.smooth}
-                        style={{
-                          paddingBottom: density.spacing['3xl'],
-                        }}
-                      >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeSection}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      style={{
+                        paddingBottom: density.spacing['3xl'],
+                      }}
+                    >
                       {activeSection === 'theme' && (
                         <ThemeSettings 
                           onSettingChange={() => setHasChanges(true)}
@@ -237,9 +236,8 @@ export function SettingsDialog() {
                           density={density}
                         />
                       )}
-                      </motion.div>
-                    </AnimatePresence>
-                  </LayoutGroup>
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </ScrollArea>
               
@@ -261,24 +259,17 @@ export function SettingsDialog() {
                   <span>{t('shortcutHint').split('⌘')[1]}</span>
                 </div>
                 
-                <AnimatePresence>
-                  {hasChanges && (
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      className={cn('flex items-center gap-2', typography.body())}
-                    >
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                      >
-                        <Check className="h-4 w-4 text-green-500" />
-                      </motion.div>
-                      <span className="text-muted-foreground">{t('autoSave')}</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {hasChanges && (
+                  <div
+                    className={cn('flex items-center gap-2 transition-opacity duration-200', typography.body())}
+                    style={{ opacity: hasChanges ? 1 : 0 }}
+                  >
+                    <div className="animate-spin-slow">
+                      <Check className="h-4 w-4 text-green-500" />
+                    </div>
+                    <span className="text-muted-foreground">{t('autoSave')}</span>
+                  </div>
+                )}
               </motion.div>
             </div>
           </div>
@@ -308,16 +299,15 @@ function CollapsibleSection({
 }) {
   const typography = useTypography();
   return (
-    <motion.div
-      className="border rounded-lg overflow-hidden"
-      initial={false}
-      animate={{ backgroundColor: expanded ? 'oklch(0.95 0.01 0 / 0.03)' : 'transparent' }}
+    <div
+      className={cn(
+        "border rounded-lg overflow-hidden transition-colors duration-200",
+        expanded ? "bg-[oklch(0.95_0.01_0_/_0.03)]" : "bg-transparent"
+      )}
     >
-      <motion.button
+      <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between p-5 hover:bg-muted/40 transition-colors"
-        whileHover={{ x: 2 }}
-        whileTap={{ scale: 0.99 }}
+        className="w-full flex items-center justify-between p-5 hover:bg-muted/40 transition-colors duration-150 hover:translate-x-0.5"
       >
         <div className="flex items-center gap-4">
           <div className="p-2 rounded-lg bg-muted/50">
@@ -334,14 +324,15 @@ function CollapsibleSection({
             )}
           </div>
         </div>
-        <motion.div
-          animate={{ rotate: expanded ? 180 : 0 }}
-          transition={springPresets.snappy}
-          className="p-1"
+        <div
+          className={cn(
+            "p-1 transition-transform duration-200",
+            expanded ? "rotate-180" : "rotate-0"
+          )}
         >
           <ChevronDown className="h-5 w-5 text-muted-foreground" />
-        </motion.div>
-      </motion.button>
+        </div>
+      </button>
       
       <AnimatePresence initial={false}>
         {expanded && (
@@ -349,7 +340,7 @@ function CollapsibleSection({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={springPresets.smooth}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             style={{ paddingInline: density.spacing.lg }}
           >
             <div style={{ paddingBottom: density.spacing.lg }}>
@@ -358,7 +349,7 @@ function CollapsibleSection({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
